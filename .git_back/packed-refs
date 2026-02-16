@@ -1,0 +1,12 @@
+# pack-refs with: peeled fully-peeled sorted 
+6b01544fc9721061d9005bd41df42731b9e46a1c refs/remotes/origin/bugfix/tests
+7f11ef6cf26f809da8e8a591af1a2f5182145b32 refs/remotes/origin/exp/modes
+c4170be4665a1e5efd5883944e63d95d064db4d5 refs/remotes/origin/exp/soundstream_encoder_ablation
+6d5a068c8e21c647a2349b3cad3b775fe949fdda refs/remotes/origin/exp/soundstream_encoder_film_collection
+9443234303812b1b6d5a247dc2de37289448b965 refs/remotes/origin/fc_add_transients_dwt
+55125f041b6a3eb24cdb5a468dad34a321a396a7 refs/remotes/origin/fc_synths
+45b6bb52a86ae2d2acdba8e607d3c679156d100d refs/remotes/origin/feat/autoencoders
+03ebea35de5ec92116d39012c5d5af9ede269912 refs/remotes/origin/feat/percussion-dataset
+46b5d2332ac79a6b77bbb9fd20f092e803e0c950 refs/remotes/origin/feat/single-datasets
+0e311e39cd8520ff96be0be3fd5cb7ef9ee32938 refs/remotes/origin/feat/tcn_assert
+949c3491d74d5e7470013e184530baac6b94fb12 refs/remotes/origin/main

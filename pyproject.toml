@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["drumblender"]
+
+[project]
+name = "drumblender"
+version = "0.0.1"
+requires-python = ">=3.9"
+dependencies = [
+    "auraloss",
+    "boto3",
+    "einops",
+    "numpy",
+    "pandas",
+    "python-dotenv",
+    "pytorch_lightning[extra] ~= 1.9.0",
+    "soundfile",
+    "torch ~= 1.13",
+    "torchaudio ~= 0.13",
+    "tqdm",
+    "wandb",
+]
+
+[project.scripts]
+drumblender = "drumblender.cli:main"
+drumblender-dataset = "drumblender.cli:dataset"
+drumblender-synth = "drumblender.cli:inference"
+
+[project.optional-dependencies]
+dev = ["black", "flake8", "pytest", "pytest-mock", "pyfakefs", "pre-commit", "pytest-cov"]
+modal = ["nnAudio", "numpy<1.24"]
