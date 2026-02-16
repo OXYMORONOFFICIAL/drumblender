@@ -106,6 +106,11 @@ def dataset():
     # This is useful if you want to use a different feature extractor
     # but don't want to re-download the dataset.
     if args.preprocess_features:
+        if not hasattr(datamodule, "preprocess_features"):
+            raise NotImplementedError(
+                "preprocess_features is not implemented for this datamodule. "
+                "Use scripts/build_modal_features.py for manual modal feature extraction."
+            )
         datamodule.preprocess_features(overwrite=True)
         return
 
@@ -175,9 +180,10 @@ def inference():
             orig_freq=input_sr, new_freq=sample_rate
         )(audio)
 
-    # Pad (CQT has a minimum length)
-    if audio.shape[1] < data_config["num_samples"]:
-        num_pad = data_config["num_samples"] - audio.shape[1]
+    # Pad (CQT has a minimum length) when fixed-length training was used.
+    num_samples = data_config.get("num_samples")
+    if num_samples is not None and audio.shape[1] < num_samples:
+        num_pad = num_samples - audio.shape[1]
         audio = torch.nn.functional.pad(audio, (0, num_pad))
 
     # Perform modal analysis on input file

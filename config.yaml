@@ -148,6 +148,7 @@ data:
     data_dir: /workspace/drumblender/dataset/datasets_pure_flat
     data_dir_unprocessed: dataset-unprocessed/percussion-dataset
     sample_rate: 48000
+    skip_prepare_data: true
     num_samples: null
     num_modes: 64
     min_length: 10

@@ -1,7 +1,7 @@
 import torch
 from torch.nn.utils.rnn import pad_sequence
 
-def pad_audio_params_collate(batch, treat_scalar_params_as_none: bool = True):
+def pad_audio_params_collate(batch):
     """
     Supports items of:
       - (audio, params)
@@ -10,7 +10,7 @@ def pad_audio_params_collate(batch, treat_scalar_params_as_none: bool = True):
     params is Tensor or dict-like, and length is int.
     """
 
-    # 2-tuple vs 3-tuple 모두 처리
+    # 2-tuple vs 3-tuple 紐⑤몢 泥섎━
     if len(batch[0]) == 3:
         audios, params, lengths = zip(*batch)
         lengths = torch.tensor(lengths, dtype=torch.long)
@@ -20,7 +20,7 @@ def pad_audio_params_collate(batch, treat_scalar_params_as_none: bool = True):
     else:
         raise ValueError(f"Unexpected batch item length: {len(batch[0])}")
 
-    # audio를 [T] 형태로 맞춘 뒤 pad
+    # audio瑜?[T] ?뺥깭濡?留욎텣 ??pad
     audios_1d = []
     for a in audios:
         if a.dim() == 2 and a.shape[0] == 1:      # [1, T] -> [T]
@@ -28,14 +28,14 @@ def pad_audio_params_collate(batch, treat_scalar_params_as_none: bool = True):
         elif a.dim() == 1:                        # [T]
             audios_1d.append(a)
         else:
-            # 예상 밖 형태면 마지막 차원을 time으로 보고 flatten은 하지 않음
-            # (필요하면 여기서 더 엄격히 assert 걸어도 됨)
+            # ?덉긽 諛??뺥깭硫?留덉?留?李⑥썝??time?쇰줈 蹂닿퀬 flatten? ?섏? ?딆쓬
+            # (?꾩슂?섎㈃ ?ш린?????꾧꺽??assert 嫄몄뼱????
             audios_1d.append(a.reshape(-1))
 
     padded = pad_sequence(audios_1d, batch_first=True)  # [B, Tmax]
-    padded = padded.unsqueeze(1)                        # [B, 1, Tmax] 로 복구
+    padded = padded.unsqueeze(1)                        # [B, 1, Tmax] 濡?蹂듦뎄
 
-    # params 정규화: dict / Tensor / scalar / None 모두 지원
+    # params ?뺢퇋?? dict / Tensor / scalar / None 紐⑤몢 吏??
     if params[0] is None:
         params_out = None
 
@@ -50,16 +50,16 @@ def pad_audio_params_collate(batch, treat_scalar_params_as_none: bool = True):
         params_out = out
 
     elif torch.is_tensor(params[0]):
-        # params 텐서가 길이가 다를 수 있는 경우(예: [3,64,F]에서 F가 다름) 패딩
+        # params ?먯꽌媛 湲몄씠媛 ?ㅻ? ???덈뒗 寃쎌슦(?? [3,64,F]?먯꽌 F媛 ?ㅻ쫫) ?⑤뵫
         p0 = params[0]
         if p0.dim() == 3:
-            # [P, M, F] -> F 기준으로 pad해서 [B, P, M, Fmax]
-            # pad_sequence는 [F] 1D만 잘 받으니, (P*M, F)로 펴서 pad 후 복원
+            # [P, M, F] -> F 湲곗??쇰줈 pad?댁꽌 [B, P, M, Fmax]
+            # pad_sequence??[F] 1D留???諛쏆쑝?? (P*M, F)濡??댁꽌 pad ??蹂듭썝
             flats = []
             PM = p0.shape[0] * p0.shape[1]
             for p in params:
                 flats.append(p.reshape(PM, p.shape[-1]).transpose(0, 1))  # [F, PM]
-            # 이제 각 원소가 [F_i, PM]이므로 pad_sequence로 [B, Fmax, PM]
+            # ?댁젣 媛??먯냼媛 [F_i, PM]?대?濡?pad_sequence濡?[B, Fmax, PM]
             padded_flat = pad_sequence(flats, batch_first=True)           # [B, Fmax, PM]
             padded_flat = padded_flat.transpose(1, 2)                     # [B, PM, Fmax]
             params_out = padded_flat.reshape(len(params), p0.shape[0], p0.shape[1], -1)  # [B,P,M,Fmax]

@@ -1,13 +1,11 @@
-# scripts/build_modal_features.py
 from __future__ import annotations
 
 import argparse
 import hashlib
 import json
 import re
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple
 
 import torch
 import torchaudio
@@ -28,41 +26,77 @@ def list_wavs(root: Path) -> List[Path]:
     return wavs
 
 
-def make_pack_key(processed_root: Path, wav_path: Path) -> Tuple[str, str, str]:
+def make_pack_key(
+    processed_root: Path,
+    wav_path: Path,
+    pack_depth: int = 1,
+) -> Tuple[str, str, str]:
     """
-    processed/<TYPE>/<INSTRUMENT>/...wav
-      -> type=TYPE, instrument=INSTRUMENT, pack=TYPE:INSTRUMENT
+    processed/<TYPE>/<INSTRUMENT>/<PACK>/...wav
+      -> type=TYPE, instrument=INSTRUMENT, pack=TYPE:INSTRUMENT:PACK
+
+    pack_depth controls how many directory levels after <TYPE>/<INSTRUMENT>
+    are used to build the pack id.
     """
     rel = wav_path.relative_to(processed_root)
     parts = rel.parts
+
     type_name = parts[0] if len(parts) >= 1 else "unknown"
     inst_name = parts[1] if len(parts) >= 2 else "unknown"
-    pack = f"{type_name}:{inst_name}"
+
+    inner_dirs = list(parts[2:-1])  # exclude type, instrument, filename
+    depth = max(1, int(pack_depth))
+    if len(inner_dirs) == 0:
+        pack_name = "__root__"
+    else:
+        pack_name = "/".join(inner_dirs[:depth])
+
+    pack = f"{type_name}:{inst_name}:{pack_name}"
     return type_name, inst_name, pack
 
 
-def make_splits_by_pack(pack_keys: List[str], seed: int, train=0.8, val=0.1) -> Dict[str, str]:
-    uniq = sorted(set(pack_keys))
+def make_splits_within_pack(
+    pack_keys: List[str],
+    seed: int,
+    train: float = 0.8,
+    val: float = 0.1,
+) -> List[str]:
+    """
+    Split files within each pack.
+    """
+    if train < 0.0 or val < 0.0 or (train + val) > 1.0:
+        raise ValueError("Invalid split ratios: require train >= 0, val >= 0, train+val <= 1")
+
+    by_pack: Dict[str, List[int]] = {}
+    for idx, pack in enumerate(pack_keys):
+        by_pack.setdefault(pack, []).append(idx)
+
     g = torch.Generator().manual_seed(seed)
-    perm = torch.randperm(len(uniq), generator=g).tolist()
-    uniq = [uniq[i] for i in perm]
+    out = ["train"] * len(pack_keys)
 
-    n = len(uniq)
-    n_train = int(n * train)
-    n_val = int(n * val)
+    for pack in sorted(by_pack.keys()):
+        idxs = by_pack[pack]
+        perm = torch.randperm(len(idxs), generator=g).tolist()
+        shuffled = [idxs[i] for i in perm]
 
-    train_set = set(uniq[:n_train])
-    val_set = set(uniq[n_train : n_train + n_val])
-    test_set = set(uniq[n_train + n_val :])
+        n = len(shuffled)
+        n_train = int(n * train)
+        n_val = int(n * val)
 
-    out: Dict[str, str] = {}
-    for k in uniq:
-        if k in train_set:
-            out[k] = "train"
-        elif k in val_set:
-            out[k] = "val"
-        else:
-            out[k] = "test"
+        # Ensure each pack contributes at least one training sample where possible.
+        if n > 0 and n_train == 0:
+            n_train = 1
+        if n_train + n_val > n:
+            n_val = max(0, n - n_train)
+
+        for rank, original_idx in enumerate(shuffled):
+            if rank < n_train:
+                out[original_idx] = "train"
+            elif rank < (n_train + n_val):
+                out[original_idx] = "val"
+            else:
+                out[original_idx] = "test"
+
     return out
 
 
@@ -73,11 +107,11 @@ def main():
     # inputs
     ap.add_argument("--processed_root", type=str, default="/private/datasets/processed")
 
-    # outputs (IMPORTANT): keep everything under /private/datasets
+    # outputs
     ap.add_argument("--out_dir", type=str, default="/private/datasets/modal_features/processed_modal_flat")
     ap.add_argument("--meta_name", type=str, default="metadata.json")
 
-    # modal params (match your cfg defaults)
+    # modal params
     ap.add_argument("--sample_rate", type=int, default=48000)
     ap.add_argument("--num_modes", type=int, default=64)
 
@@ -92,12 +126,20 @@ def main():
     # behavior
     ap.add_argument("--seed", type=int, default=5152845)
     ap.add_argument("--max_files", type=int, default=0, help="0 = all files")
+    ap.add_argument(
+        "--pack_depth",
+        type=int,
+        default=1,
+        help=(
+            "Directory depth after <type>/<instrument> used as pack id. "
+            "1 means <type>/<instrument>/<pack>/..."
+        ),
+    )
 
-    # Failure handling to push toward 'fail=0'
+    # failure handling
     ap.add_argument("--pad_short", action="store_true", help="If CQT reflect-pad error, right-pad zeros and retry.")
     ap.add_argument("--pad_to", type=int, default=0, help="If >0, right-pad audio shorter than this to this length (samples).")
     ap.add_argument("--min_duration_ms", type=float, default=0.0, help="If >0, skip files shorter than this (ms). Set 0 to not skip.")
-    ap.add_argument("--allow_multich", action="store_true", help="If set, keep multi-channel; otherwise use first channel.")
     args = ap.parse_args()
 
     processed_root = Path(args.processed_root)
@@ -121,10 +163,15 @@ def main():
     typed: List[Tuple[str, str, str]] = []
     packs: List[str] = []
     for p in wavs:
-        type_name, inst_name, pack = make_pack_key(processed_root, p)
+        type_name, inst_name, pack = make_pack_key(
+            processed_root,
+            p,
+            pack_depth=args.pack_depth,
+        )
         typed.append((type_name, inst_name, pack))
         packs.append(pack)
-    pack2split = make_splits_by_pack(packs, seed=args.seed)
+
+    split_by_index = make_splits_within_pack(packs, seed=args.seed)
 
     modal = CQTModalAnalysis(
         args.sample_rate,
@@ -143,10 +190,10 @@ def main():
     kept = 0
 
     def right_pad_to(w: torch.Tensor, target: int) -> torch.Tensor:
-        T = int(w.shape[-1])
-        if T >= target:
+        t = int(w.shape[-1])
+        if t >= target:
             return w
-        return torch.nn.functional.pad(w, (0, target - T))
+        return torch.nn.functional.pad(w, (0, target - t))
 
     def extract_feat(w: torch.Tensor) -> torch.Tensor:
         modal_freqs, modal_amps, modal_phases = modal(w)  # (1, M, F)
@@ -155,9 +202,15 @@ def main():
         feat = feat.squeeze(1)  # (3,M,F)
         return feat
 
-    pbar = tqdm(list(zip(wavs, typed)), total=len(wavs), desc="modal", unit="file", dynamic_ncols=True)
+    pbar = tqdm(
+        list(zip(wavs, typed)),
+        total=len(wavs),
+        desc="modal",
+        unit="file",
+        dynamic_ncols=True,
+    )
 
-    for wav_path, (type_name, inst_name, pack) in pbar:
+    for idx, (wav_path, (type_name, inst_name, pack)) in enumerate(pbar):
         rel = wav_path.relative_to(processed_root)
         key = stable_id(str(rel))
 
@@ -166,18 +219,16 @@ def main():
             if wav.ndim != 2:
                 raise ValueError(f"bad wav shape: {tuple(wav.shape)}")
 
-            # keep your preprocessing result as much as possible:
-            # - DO NOT resample here. Just assert.
+            # no resample: enforce preprocessed sample rate
             if sr != args.sample_rate:
                 raise ValueError(f"sample_rate mismatch: {sr} != {args.sample_rate} for {rel}")
 
-            # channel handling: default keep first channel (no downmix)
-            if (not args.allow_multich) and wav.shape[0] > 1:
-                wav = wav[:1, :]
-            elif wav.shape[0] == 0:
+            # mono-only policy: always channel 0
+            if wav.shape[0] == 0:
                 raise ValueError("empty channel dim")
+            wav = wav[:1, :]
 
-            # optional hard skip for too-short (you can keep 0.0 to not skip)
+            # optional hard skip for too-short
             if args.min_duration_ms and args.min_duration_ms > 0:
                 min_samples = int(args.sample_rate * (args.min_duration_ms / 1000.0))
                 if wav.shape[-1] < min_samples:
@@ -204,11 +255,11 @@ def main():
                     raise
 
             # force fixed num_modes
-            P, M, F = feat.shape
-            if M < args.num_modes:
-                pad = feat.new_zeros((P, args.num_modes - M, F))
+            p, m, f = feat.shape
+            if m < args.num_modes:
+                pad = feat.new_zeros((p, args.num_modes - m, f))
                 feat = torch.cat([feat, pad], dim=1)
-            elif M > args.num_modes:
+            elif m > args.num_modes:
                 feat = feat[:, : args.num_modes, :]
 
             # save outputs under out_dir
@@ -217,7 +268,7 @@ def main():
             torchaudio.save(str(out_wav), wav, args.sample_rate)
             torch.save(feat, out_feat)
 
-            split = pack2split[pack]
+            split = split_by_index[idx]
             meta[key] = {
                 "filename": str(out_wav.relative_to(out_dir)),
                 "feature_file": str(out_feat.relative_to(out_dir)),
@@ -233,10 +284,6 @@ def main():
 
         except Exception as e:
             failed += 1
-            # keep moving; user will run stats and we’ll fix root cause
-            # write a minimal failure record into meta as well (optional)
-            # (we keep it out of metadata.json so dataset doesn't break)
-            # print is fine for now
             print("fail:", str(rel), "->", repr(e))
 
         pbar.set_postfix(kept=kept, failed=failed)

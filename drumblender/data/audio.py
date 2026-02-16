@@ -107,23 +107,23 @@ class AudioDataset(Dataset):
         audio_filename = self.metadata[self.file_list[idx]]["filename"]
         waveform, sample_rate = torchaudio.load(self.data_dir.joinpath(audio_filename))
 
-        # SR은 여전히 강제(권장: 전처리로 통일)
+        # SR? ?ъ쟾??媛뺤젣(沅뚯옣: ?꾩쿂由щ줈 ?듭씪)
         assert sample_rate == self.sample_rate, "Sample rate mismatch."
 
-        # mono 강제(데이터가 stereo일 수 있으면 여기서 다운믹스 권장)
-        # 기존 코드처럼 (1, T)만 허용하려면 아래 assert 유지
+        # mono 媛뺤젣(?곗씠?곌? stereo?????덉쑝硫??ш린???ㅼ슫誘뱀뒪 沅뚯옣)
+        # 湲곗〈 肄붾뱶泥섎읆 (1, T)留??덉슜?섎젮硫??꾨옒 assert ?좎?
         if waveform.ndim != 2:
             raise ValueError(f"Expected (C,T), got {waveform.shape}")
 
         if waveform.shape[0] > 1:
-            # 다운믹스(mean)
-            waveform = waveform.mean(dim=0, keepdim=True)
+            # ?ㅼ슫誘뱀뒪(mean)
+            waveform = waveform[:1, :]
 
         length = waveform.shape[-1]
 
-        # 고정 길이를 원할 때만 검사/자르기/패딩
+        # 怨좎젙 湲몄씠瑜??먰븷 ?뚮쭔 寃???먮Ⅴ湲??⑤뵫
         if self.num_samples is not None and self.num_samples > 0:
-            # pad/truncate 해서 고정 길이로 맞춤
+            # pad/truncate ?댁꽌 怨좎젙 湲몄씠濡?留욎땄
             if length > self.num_samples:
                 waveform = waveform[:, : self.num_samples]
                 length = self.num_samples
@@ -131,16 +131,16 @@ class AudioDataset(Dataset):
                 waveform = torch.nn.functional.pad(waveform, (0, self.num_samples - length))
                 length = self.num_samples
 
-            # 기존과 동일한 assert (호환)
+            # 湲곗〈怨??숈씪??assert (?명솚)
             assert waveform.shape == (1, self.num_samples), "Incorrect input audio shape."
         else:
-            # variable-length 모드에서는 (1, T_i)만 보장하면 됨
+            # variable-length 紐⑤뱶?먯꽌??(1, T_i)留?蹂댁옣?섎㈃ ??
             assert waveform.shape[0] == 1, "Expecting mono audio"
 
         if self.normalize:
             waveform = waveform / (waveform.abs().max() + 1e-9)
 
-        # length 같이 반환 (collate_fn이 이걸 이용)
+        # length 媛숈씠 諛섑솚 (collate_fn???닿구 ?댁슜)
         return (waveform, length)
     ###
 
@@ -330,7 +330,7 @@ class AudioWithParametersDataset(Dataset):
     Loads (waveform, params, length).
 
     waveform: [1, T]
-    params:   [P, M, F]  (예: P=3: freq/amp/phase, M=num_modes, F=num_frames)
+    params:   [P, M, F]  (?? P=3: freq/amp/phase, M=num_modes, F=num_frames)
     length:   int (T)
 
     Args:
@@ -338,10 +338,10 @@ class AudioWithParametersDataset(Dataset):
         meta_file: json metadata (key -> dict with filename, feature_file, etc.)
         sample_rate: expected SR (assert)
         num_samples: if not None => pad/truncate to fixed length, else variable
-        parameter_key: metadata에서 params 경로로 쓸 key (default "feature_file")
-        expected_num_modes: 모드 수 고정하고 싶으면 지정 (부족하면 pad, 많으면 truncate)
-        normalize: peak normalize 여부
-        split/split_strategy/seed/sample_types/instruments: AudioDataset과 유사하게 필터링 옵션
+        parameter_key: metadata?먯꽌 params 寃쎈줈濡???key (default "feature_file")
+        expected_num_modes: 紐⑤뱶 ??怨좎젙?섍퀬 ?띠쑝硫?吏??(遺議깊븯硫?pad, 留롮쑝硫?truncate)
+        normalize: peak normalize ?щ?
+        split/split_strategy/seed/sample_types/instruments: AudioDataset怨??좎궗?섍쾶 ?꾪꽣留??듭뀡
     """
 
     def __init__(
@@ -382,11 +382,11 @@ class AudioWithParametersDataset(Dataset):
         # file_list = metadata keys
         self.file_list = list(self.metadata.keys())
 
-        # ---- optional split/filter (간단 구현: 기존 AudioDataset 로직을 그대로 가져오고 싶으면,
-        #      너가 이미 AudioDataset 쪽 split함수들을 갖고 있으니 그걸 호출해도 됨)
-        # 여기서는 "split"이 metadata에 이미 있다면 그걸 사용하도록(가장 현실적)
+        # ---- optional split/filter (媛꾨떒 援ы쁽: 湲곗〈 AudioDataset 濡쒖쭅??洹몃?濡?媛?몄삤怨??띠쑝硫?
+        #      ?덇? ?대? AudioDataset 履?split?⑥닔?ㅼ쓣 媛뽮퀬 ?덉쑝??洹멸구 ?몄텧?대룄 ??
+        # ?ш린?쒕뒗 "split"??metadata???대? ?덈떎硫?洹멸구 ?ъ슜?섎룄濡?媛???꾩떎??
         if split is not None:
-            # metadata에 "split" 필드가 있으면 그걸로 필터
+            # metadata??"split" ?꾨뱶媛 ?덉쑝硫?洹멸구濡??꾪꽣
             if all("split" in self.metadata[k] for k in self.file_list):
                 self.file_list = [k for k in self.file_list if self.metadata[k]["split"] == split]
 
@@ -403,7 +403,7 @@ class AudioWithParametersDataset(Dataset):
             ]
 
         # ---- lengths cache for bucketing ----
-        # metadata에 num_samples 저장해두면 빠르고, 없으면 torchaudio.info로 한번 스캔
+        # metadata??num_samples ??ν빐?먮㈃ 鍮좊Ⅴ怨? ?놁쑝硫?torchaudio.info濡??쒕쾲 ?ㅼ틪
         self.lengths = []
         for k in self.file_list:
             item = self.metadata[k]
@@ -415,7 +415,7 @@ class AudioWithParametersDataset(Dataset):
                     info = torchaudio.info(wav_path)
                     self.lengths.append(int(info.num_frames))
                 except Exception:
-                    # fallback: load (느림)
+                    # fallback: load (?먮┝)
                     w, _ = torchaudio.load(wav_path)
                     self.lengths.append(int(w.shape[-1]))
 
@@ -432,13 +432,13 @@ class AudioWithParametersDataset(Dataset):
 
         # downmix(mean)
         if waveform.shape[0] > 1:
-            waveform = waveform.mean(dim=0, keepdim=True)
+            waveform = waveform[:1, :]
         else:
             waveform = waveform[:1, :]
 
         length = int(waveform.shape[-1])
 
-        # fixed length 모드면 pad/truncate
+        # fixed length 紐⑤뱶硫?pad/truncate
         if self.num_samples is not None and self.num_samples > 0:
             target = int(self.num_samples)
             if length > target:
@@ -451,16 +451,16 @@ class AudioWithParametersDataset(Dataset):
         if self.normalize:
             waveform = waveform / (waveform.abs().max() + 1e-9)
 
-        # params 로드
+        # params 濡쒕뱶
         if self.parameter_key not in item:
             raise KeyError(f"metadata missing '{self.parameter_key}' for key={key}")
 
         p_path = self.data_dir.joinpath(item[self.parameter_key])
-        params = torch.load(p_path)  # 기대: [P,M,F]
+        params = torch.load(p_path)  # 湲곕?: [P,M,F]
         if params.ndim != 3:
             raise ValueError(f"Expected params [P,M,F], got {tuple(params.shape)} from {p_path}")
 
-        # num_modes 정리(원하면)
+        # num_modes ?뺣━(?먰븯硫?
         if self.expected_num_modes is not None:
             M = int(self.expected_num_modes)
             P, M0, F = params.shape

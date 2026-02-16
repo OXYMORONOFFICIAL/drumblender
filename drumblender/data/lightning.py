@@ -75,6 +75,7 @@ class AudioDataModule(pl.LightningDataModule):
         bucket_boundaries: Optional[list[int]] = None, # xXx
         drop_last: bool = True, # xXx
         seed: int = 42, # xXx
+        skip_prepare_data: bool = False,
     ):
         super().__init__()
         self.batch_size = batch_size
@@ -93,6 +94,7 @@ class AudioDataModule(pl.LightningDataModule):
         self.bucket_boundaries = bucket_boundaries or [48000, 96000, 192000, 384000] # xXx
         self.drop_last = drop_last # xXx
         self.seed = seed # xXx
+        self.skip_prepare_data = skip_prepare_data
 
 
     def prepare_data(self, use_preprocessed: bool = True) -> None:
@@ -104,6 +106,15 @@ class AudioDataModule(pl.LightningDataModule):
                 False, the raw data will be downloaded and processed. This will only
                 need to be set to False if the preprocessed data archive isn't available
         """
+        if self.skip_prepare_data:
+            dataset_meta = Path(self.data_dir).joinpath(self.meta_file)
+            if not Path(self.data_dir).exists() or not dataset_meta.exists():
+                raise FileNotFoundError(
+                    f"skip_prepare_data=True but dataset is missing. Expected: {dataset_meta}"
+                )
+            log.info("Skipping prepare_data because skip_prepare_data=True")
+            return
+
         if use_preprocessed:
             # Download and extract the archived dataset
             if not Path(self.data_dir).exists():
@@ -159,7 +170,7 @@ class AudioDataModule(pl.LightningDataModule):
                     lengths = []
                     for i in range(len(self.train_dataset)):
                         item = self.train_dataset[i]
-                        audio = item[0]  # (audio, ...)에서 audio
+                        audio = item[0]  # (audio, ...)?먯꽌 audio
                         lengths.append(int(audio.shape[-1]))
                     self.train_dataset.lengths = lengths
                 except Exception:
@@ -205,7 +216,7 @@ class AudioDataModule(pl.LightningDataModule):
                 self.train_dataset,
                 batch_sampler=batch_sampler,
                 num_workers=self.num_workers,
-                collate_fn=lambda b: pad_audio_params_collate(b, treat_scalar_params_as_none=True),
+                collate_fn=pad_audio_params_collate,
                 pin_memory=True,
             )
 
@@ -215,7 +226,7 @@ class AudioDataModule(pl.LightningDataModule):
             batch_size=self.batch_size,
             num_workers=self.num_workers,
             shuffle=True,
-            collate_fn=lambda b: pad_audio_params_collate(b, treat_scalar_params_as_none=True),
+            collate_fn=pad_audio_params_collate,
             pin_memory=True,
             drop_last=self.drop_last,
         )
@@ -227,7 +238,7 @@ class AudioDataModule(pl.LightningDataModule):
             batch_size=self.batch_size,
             num_workers=self.num_workers,
             shuffle=False,
-            collate_fn=lambda b: pad_audio_params_collate(b, treat_scalar_params_as_none=True),
+            collate_fn=pad_audio_params_collate,
             pin_memory=True,
             drop_last=False,
         )
@@ -377,6 +388,7 @@ class ModalDataModule(AudioDataModule):
         bucket_boundaries: Optional[list[int]] = None, # xXx
         drop_last: bool = True, # xXx
         seed: int = 42, # xXx
+        skip_prepare_data: bool = False,
 
     ):
         super().__init__(
@@ -396,6 +408,7 @@ class ModalDataModule(AudioDataModule):
             bucket_boundaries=bucket_boundaries, # xXx
             drop_last=drop_last, # xXx
             seed=seed, # xXx
+            skip_prepare_data=skip_prepare_data,
 
         )
         self.num_modes = num_modes
@@ -498,12 +511,6 @@ class ModalDataModule(AudioDataModule):
                 )
             ###
 
-
-
-                # Update the metadata
-                metadata[key]["filename_modal"] = str(
-                    modal_audio_file.relative_to(self.data_dir)
-                )
 
             # Update the metadata
             metadata[key]["feature_file"] = str(modal_file.relative_to(self.data_dir))

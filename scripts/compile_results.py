@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Script to compile results from individual csv files
+xXx - 논문의 LaTeX 형태로 csv result에서 eval chart 생성함. 딱굳
 """
 import argparse
 import sys
