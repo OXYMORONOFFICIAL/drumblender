@@ -32,26 +32,33 @@ def make_pack_key(
     pack_depth: int = 1,
 ) -> Tuple[str, str, str]:
     """
-    processed/<TYPE>/<INSTRUMENT>/<PACK>/...wav
-      -> type=TYPE, instrument=INSTRUMENT, pack=TYPE:INSTRUMENT:PACK
+    Build a pack key directly from the top-level folder(s) under processed_root.
 
-    pack_depth controls how many directory levels after <TYPE>/<INSTRUMENT>
-    are used to build the pack id.
+    Example:
+      processed/pack_1/a.wav            -> pack=pack_1
+      processed/pack_1/sub/x.wav        -> pack=pack_1
+      processed/pack_2/sub/deep/y.wav   -> pack=pack_2
+
+    If pack_depth > 1, the first N directory levels are joined.
+    This still ignores deeper subdirectory structure for split grouping.
     """
     rel = wav_path.relative_to(processed_root)
     parts = rel.parts
 
-    type_name = parts[0] if len(parts) >= 1 else "unknown"
-    inst_name = parts[1] if len(parts) >= 2 else "unknown"
+    # HIGHLIGHT: Custom dataset policy.
+    # We treat the top-level folder under processed_root as the pack id.
+    # Subdirectories under the pack are ignored for pack grouping.
+    type_name = "custom"
+    inst_name = "unlabeled"
 
-    inner_dirs = list(parts[2:-1])  # exclude type, instrument, filename
+    inner_dirs = list(parts[:-1])  # all directories before filename
     depth = max(1, int(pack_depth))
     if len(inner_dirs) == 0:
         pack_name = "__root__"
     else:
         pack_name = "/".join(inner_dirs[:depth])
 
-    pack = f"{type_name}:{inst_name}:{pack_name}"
+    pack = pack_name
     return type_name, inst_name, pack
 
 
@@ -131,8 +138,16 @@ def main():
         type=int,
         default=1,
         help=(
-            "Directory depth after <type>/<instrument> used as pack id. "
-            "1 means <type>/<instrument>/<pack>/..."
+            "Number of top-level path segments under processed_root used as pack id. "
+            "1 means top-level folder only (e.g., processed/pack_name/...)."
+        ),
+    )
+    ap.add_argument(
+        "--write_split",
+        action="store_true",
+        help=(
+            "Write split labels into metadata during preprocessing. "
+            "Default is OFF so split is done at training time in the dataset."
         ),
     )
 
@@ -171,7 +186,12 @@ def main():
         typed.append((type_name, inst_name, pack))
         packs.append(pack)
 
-    split_by_index = make_splits_within_pack(packs, seed=args.seed)
+    split_by_index = None
+    if args.write_split:
+        # HIGHLIGHT: Optional backward compatibility path.
+        # For the current workflow we keep this disabled so the dataset class
+        # computes split dynamically from sample_pack_key and seed.
+        split_by_index = make_splits_within_pack(packs, seed=args.seed)
 
     modal = CQTModalAnalysis(
         args.sample_rate,
@@ -268,17 +288,18 @@ def main():
             torchaudio.save(str(out_wav), wav, args.sample_rate)
             torch.save(feat, out_feat)
 
-            split = split_by_index[idx]
-            meta[key] = {
+            meta_item = {
                 "filename": str(out_wav.relative_to(out_dir)),
                 "feature_file": str(out_feat.relative_to(out_dir)),
                 "sample_pack_key": pack,
                 "instrument": inst_name,
                 "type": type_name,
-                "split": split,
                 "num_samples": int(wav.shape[-1]),
                 "orig_relpath": str(rel),
             }
+            if split_by_index is not None:
+                meta_item["split"] = split_by_index[idx]
+            meta[key] = meta_item
 
             kept += 1
 

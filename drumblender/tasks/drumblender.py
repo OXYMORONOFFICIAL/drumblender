@@ -287,7 +287,7 @@ class DrumBlender(pl.LightningModule):
 
     def training_step(self, batch, batch_idx: int):
         loss, _ = self._do_step(batch)
-        self.log("train/loss", loss, on_epoch=True)
+        self.log("train/loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         return loss
 
     def validation_step(self, batch, batch_idx: int):
