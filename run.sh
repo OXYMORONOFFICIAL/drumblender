@@ -8,29 +8,19 @@ WANDB_DIR="${WANDB_DIR:-/workspace/drumblender/logs/wandb}"
 CFG="/workspace/drumblender/cfg/05_all_parallel.yaml"
 DATA_DIR="/private/datasets/modal_features/processed_modal_flat"
 
-<<<<<<< HEAD
 # (선택) 파편화 완화. OOM 났던 환경이면 도움될 때가 있음
 export PYTORCH_CUDA_ALLOC_CONF="max_split_size_mb:128"
 
 # ### HIGHLIGHT: Use more validation batches for stable metrics and rotating val audio samples.
 drumblender fit -c /workspace/drumblender/cfg/05_all_parallel.yaml \
-=======
-drumblender fit -c "$CFG" \
->>>>>>> 8ce3a8d4137eed078d528228730edd3ea802ddb9
   --trainer.accelerator gpu \
   --trainer.devices 1 \
   --trainer.precision 32 \
   --trainer.max_epochs -1 \
   --trainer.log_every_n_steps 40 \
   --trainer.num_sanity_val_steps 0 \
-<<<<<<< HEAD
   --trainer.val_check_interval 0.25 \
   --trainer.limit_val_batches 8 \
-=======
-  --trainer.val_check_interval 40 \
-  --trainer.limit_val_batches 1 \
-  --trainer.accumulate_grad_batches 4 \
->>>>>>> 8ce3a8d4137eed078d528228730edd3ea802ddb9
   --trainer.default_root_dir /workspace/drumblender/lightning_logs \
   --trainer.logger pytorch_lightning.loggers.WandbLogger \
   --trainer.logger.init_args.project "$WANDB_PROJECT" \

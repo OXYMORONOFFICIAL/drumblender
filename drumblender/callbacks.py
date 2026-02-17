@@ -106,7 +106,7 @@ class LogAudioCallback(Callback):
         pl_module: pl.LightningModule,
     ) -> None:
         if self.on_train and self.log_on_epoch_end:
-            self._log_audio("train")
+            self._log_audio("train", trainer)
         self._clear_saved_batches("train")
 
     def on_validation_batch_start(
@@ -135,7 +135,7 @@ class LogAudioCallback(Callback):
         if self.on_val and batch_idx == self._val_target_batch_idx:
             self._unwrap_forward()
             if not self.log_on_epoch_end:
-                self._log_audio("val")
+                self._log_audio("val", trainer)
                 self._clear_saved_batches("val")
 
     # ### HIGHLIGHT: Select the next validation batch index for audio logging.
@@ -161,7 +161,7 @@ class LogAudioCallback(Callback):
         pl_module: pl.LightningModule,
     ) -> None:
         if self.on_val and self.log_on_epoch_end:
-            self._log_audio("val")
+            self._log_audio("val", trainer)
         self._clear_saved_batches("val")
 
     def on_test_batch_start(
@@ -193,7 +193,7 @@ class LogAudioCallback(Callback):
         pl_module: pl.LightningModule,
     ) -> None:
         if self.on_test and self.log_on_epoch_end:
-            self._log_audio("test")
+            self._log_audio("test", trainer)
         self._clear_saved_batches("test")
 
     def _save_batch(
