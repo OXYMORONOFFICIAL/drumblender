@@ -11,6 +11,7 @@ import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 from einops import rearrange
+from pytorch_lightning.loggers import WandbLogger
 
 
 class DrumBlender(pl.LightningModule):
@@ -298,7 +299,7 @@ class DrumBlender(pl.LightningModule):
         )
         # ### HIGHLIGHT: Keep the epoch-aggregated loss for long-term trend monitoring.
         self.log(
-            "train/loss",
+            "train/loss_epoch",
             loss,
             on_step=False,
             on_epoch=True,
@@ -309,18 +310,26 @@ class DrumBlender(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx: int):
         loss, _ = self._do_step(batch)
-        # ### HIGHLIGHT: Log validation loss at each validation step for finer monitoring.
-        self.log(
-            "validation/loss_step",
-            loss,
-            on_step=True,
-            on_epoch=False,
-            prog_bar=True,
-            logger=True,
-        )
+        # ### HIGHLIGHT: Align validation step-loss x-axis with training global_step in WandB.
+        if batch_idx == 0:
+            if isinstance(self.logger, WandbLogger):
+                self.logger.experiment.log(
+                    {"validation/loss_step": float(loss.detach().cpu())},
+                    step=int(self.global_step),
+                )
+            else:
+                self.log(
+                    "validation/loss_step",
+                    loss,
+                    on_step=True,
+                    on_epoch=False,
+                    prog_bar=True,
+                    logger=True,
+                )
+
         # ### HIGHLIGHT: Keep epoch-level validation loss for scheduler/early-stopping.
         self.log(
-            "validation/loss",
+            "validation/loss_epoch",
             loss,
             on_step=False,
             on_epoch=True,
