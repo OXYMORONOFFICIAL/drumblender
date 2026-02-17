@@ -1,6 +1,9 @@
+# cfg/logger/wandb.yaml
 class_path: pytorch_lightning.loggers.WandbLogger
 init_args:
   project: drumblender
+  name: ${oc.env:RUN_NAME,modal_step}
   save_dir: logs/wandb
-# dict_kwargs:
-#   entity: c4dm
+  log_model: true
+dict_kwargs:
+  job_type: train
