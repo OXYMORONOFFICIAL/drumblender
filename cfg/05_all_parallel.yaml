@@ -58,6 +58,8 @@ trainer:
         n_batches: 1
         log_on_epoch_end: false
         max_audio_samples: 8
+        # ### HIGHLIGHT: Log validation audio every 2 validation checks.
+        val_log_every_n_checks: 2
 
 
 

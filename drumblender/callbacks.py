@@ -31,6 +31,7 @@ class LogAudioCallback(Callback):
         n_batches: int = 1,
         log_on_epoch_end: bool = False,
         max_audio_samples: int = 8,  # Limit the number of samples logged to W&B
+        val_log_every_n_checks: int = 1,
     ):
         self.on_train = on_train
         self.on_val = on_val
@@ -47,10 +48,12 @@ class LogAudioCallback(Callback):
         self.log_on_epoch_end = log_on_epoch_end
         self.max_audio_samples = max_audio_samples
         self._target_batch = {"train": 0, "val": 0}
+        self.val_log_every_n_checks = max(1, int(val_log_every_n_checks))
 
         # ### HIGHLIGHT: Rotate validation audio source batch across validation runs.
         self._val_round = 0
         self._val_target_batch_idx = 0
+        self._should_log_val_this_round = True
 
     # Store a local reference to the model on setup
     def setup(
@@ -85,20 +88,26 @@ class LogAudioCallback(Callback):
         batch: Any,
         batch_idx: int,
     ) -> None:
+        # ### HIGHLIGHT: Keep the original train-audio capture behavior.
         if self.on_train and batch_idx < self.n_batches:
             self._wrap_forward("train")
             self._save_batch(batch[0], "train", "target")
 
-    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx: int) -> None:
-        if not self.on_train:
-            return
-
-        if batch_idx < self.n_batches:
+    def on_train_batch_end(
+        self,
+        trainer: pl.Trainer,
+        pl_module: pl.LightningModule,
+        outputs: Any,
+        batch: Any,
+        batch_idx: int,
+    ) -> None:
+        if self.on_train and batch_idx < self.n_batches:
             self._unwrap_forward()
-
-            # ✅ 무조건 뜨게: 첫 배치가 끝나면 바로 로그
-            if batch_idx == 0 and trainer.global_step % 1000 == 0:
-                self._log_audio("train", trainer)
+        elif (
+            self.on_train and batch_idx == self.n_batches and not self.log_on_epoch_end
+        ):
+            self._log_audio("train", trainer)
+            self._clear_saved_batches("train")
 
     def on_train_epoch_end(
         self,
@@ -134,9 +143,9 @@ class LogAudioCallback(Callback):
         # ### HIGHLIGHT: Finish capture for the currently selected validation batch.
         if self.on_val and batch_idx == self._val_target_batch_idx:
             self._unwrap_forward()
-            if not self.log_on_epoch_end:
+            if not self.log_on_epoch_end and self._should_log_val_this_round:
                 self._log_audio("val", trainer)
-                self._clear_saved_batches("val")
+            self._clear_saved_batches("val")
 
     # ### HIGHLIGHT: Select the next validation batch index for audio logging.
     def on_validation_start(
@@ -152,6 +161,10 @@ class LogAudioCallback(Callback):
             num_val_batches = num_val_batches[0] if len(num_val_batches) > 0 else 0
 
         num_val_batches = max(int(num_val_batches), 1)
+        # ### HIGHLIGHT: Slow down validation audio logging by check count if requested.
+        self._should_log_val_this_round = (
+            self._val_round % self.val_log_every_n_checks
+        ) == 0
         self._val_target_batch_idx = self._val_round % num_val_batches
         self._val_round += 1
 
@@ -160,7 +173,7 @@ class LogAudioCallback(Callback):
         trainer: pl.Trainer,
         pl_module: pl.LightningModule,
     ) -> None:
-        if self.on_val and self.log_on_epoch_end:
+        if self.on_val and self.log_on_epoch_end and self._should_log_val_this_round:
             self._log_audio("val", trainer)
         self._clear_saved_batches("val")
 
@@ -224,8 +237,8 @@ class LogAudioCallback(Callback):
 
         signals = reduce(lambda x, y: x + y, zip(targets, reconstructions))
         audio_signal = torch.hstack(signals).cpu()
-
-        logger = trainer.logger  # ✅ 이걸로 고정 (pl_module.logger 말고)
+        # Use trainer.logger to avoid stale logger references during callback execution.
+        logger = trainer.logger
         if isinstance(logger, WandbLogger) and trainer.is_global_zero:
             audio_signal = audio_signal.squeeze().numpy()
             audio = Audio(audio_signal, caption=f"{split}/audio", sample_rate=self.save_audio_sr)
