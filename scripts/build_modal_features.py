@@ -10,6 +10,7 @@ from typing import Dict, List, Tuple
 import torch
 import torchaudio
 from tqdm import tqdm
+import math
 
 from drumblender.utils.modal_analysis import CQTModalAnalysis
 
@@ -229,8 +230,31 @@ def main():
             return w
         return torch.nn.functional.pad(w, (0, target - t))
 
+    def num_frames_from_len(T: int, hop: int) -> int:
+        # 대충 CQT 결과 프레임 수와 비슷하게 맞추는 용도 (최소 1)
+        return max(1, math.ceil(T / hop))
+
     def extract_feat(w: torch.Tensor) -> torch.Tensor:
-        modal_freqs, modal_amps, modal_phases = modal(w)  # (1, M, F)
+        """
+        returns feat: (3, M, F)  where M can be 0..num_modes
+        if M==0, return zeros (3, 0, F) instead of crashing.
+        """
+        try:
+            modal_freqs, modal_amps, modal_phases = modal(w)  # expected (1, M, F)
+        except RuntimeError as e:
+            msg = str(e)
+            # 0개 모달 케이스가 내부에서 torch.stack([])로 터지는 경우를 흡수
+            if "non-empty TensorList" in msg:
+                F = num_frames_from_len(int(w.shape[-1]), args.hop_length)
+                z = w.new_zeros((3, 0, F))
+                return z
+            raise
+
+        # 혹시라도 구현이 M=0 텐서를 반환하는 경우까지 방어
+        if modal_freqs.numel() == 0 or modal_freqs.shape[1] == 0:
+            F = num_frames_from_len(int(w.shape[-1]), args.hop_length)
+            return w.new_zeros((3, 0, F))
+
         modal_freqs = 2 * torch.pi * modal_freqs / args.sample_rate
         feat = torch.stack([modal_freqs, modal_amps, modal_phases])  # (3,1,M,F)
         feat = feat.squeeze(1)  # (3,M,F)
