@@ -152,7 +152,21 @@ def main():
     )
 
     # failure handling
-    ap.add_argument("--pad_short", action="store_true", help="If CQT reflect-pad error, right-pad zeros and retry.")
+    # HIGHLIGHT: Auto-padding retry is enabled by default to handle short files
+    # that fail inside nnAudio CQT reflect padding.
+    ap.add_argument(
+        "--pad_short",
+        dest="pad_short",
+        action="store_true",
+        help="Enable auto right-padding retry for CQT reflect-pad failures (default: enabled).",
+    )
+    ap.add_argument(
+        "--no_pad_short",
+        dest="pad_short",
+        action="store_false",
+        help="Disable auto right-padding retry for CQT reflect-pad failures.",
+    )
+    ap.set_defaults(pad_short=True)
     ap.add_argument("--pad_to", type=int, default=0, help="If >0, right-pad audio shorter than this to this length (samples).")
     ap.add_argument("--min_duration_ms", type=float, default=0.0, help="If >0, skip files shorter than this (ms). Set 0 to not skip.")
     args = ap.parse_args()
@@ -222,6 +236,17 @@ def main():
         feat = feat.squeeze(1)  # (3,M,F)
         return feat
 
+    def infer_required_length_from_padding_error(msg: str, current_len: int) -> int:
+        # HIGHLIGHT: Parse nnAudio/torch padding error and choose a safe retry length.
+        m = re.search(r"padding\s+\((\d+),\s*(\d+)\)", msg)
+        if m:
+            pad_l = int(m.group(1))
+            pad_r = int(m.group(2))
+            return max(current_len, pad_l + 1, pad_r + 1)
+
+        # Fallback if the exact tuple is missing from the error string.
+        return max(current_len + 1, current_len * 2)
+
     pbar = tqdm(
         list(zip(wavs, typed)),
         total=len(wavs),
@@ -258,21 +283,20 @@ def main():
             if args.pad_to and args.pad_to > 0:
                 wav = right_pad_to(wav, args.pad_to)
 
-            # extract with retry for reflect padding error
+            # extract with retry for reflect padding errors from CQT
             try:
                 feat = extract_feat(wav)
             except RuntimeError as e:
-                if args.pad_short and "Padding size should be less than the corresponding input dimension" in str(e):
-                    m = re.search(r"padding\s+\((\d+),\s*(\d+)\)", str(e))
-                    if m:
-                        pad_l = int(m.group(1))
-                        target = pad_l + 1
-                        wav2 = right_pad_to(wav, target)
-                        feat = extract_feat(wav2)
-                    else:
-                        raise
-                else:
+                msg = str(e)
+                if (not args.pad_short) or ("Padding size should be less than the corresponding input dimension" not in msg):
                     raise
+
+                # HIGHLIGHT: Single retry only.
+                # Apply one right-padding pass and retry once; if it still fails,
+                # propagate the error and mark this file as failed.
+                target = infer_required_length_from_padding_error(msg, int(wav.shape[-1]))
+                wav_try = right_pad_to(wav, target)
+                feat = extract_feat(wav_try)
 
             # force fixed num_modes
             p, m, f = feat.shape
