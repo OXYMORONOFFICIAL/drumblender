@@ -53,9 +53,16 @@ trainer:
       init_args:
         on_train: true
         on_val: true
-        on_test: true
+        on_test: false
         save_audio_sr: 48000
         n_batches: 1
+        log_on_epoch_end: false
+        max_audio_samples: 8
+
+
+
+
+
     # - class_path: drumblender.callbacks.CleanWandbCacheCallback
     #   init_args:
     #     every_n_epochs: 2

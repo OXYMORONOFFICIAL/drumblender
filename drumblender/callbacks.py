@@ -46,6 +46,7 @@ class LogAudioCallback(Callback):
 
         self.log_on_epoch_end = log_on_epoch_end
         self.max_audio_samples = max_audio_samples
+        self._target_batch = {"train": 0, "val": 0}
 
         # ### HIGHLIGHT: Rotate validation audio source batch across validation runs.
         self._val_round = 0
@@ -88,21 +89,16 @@ class LogAudioCallback(Callback):
             self._wrap_forward("train")
             self._save_batch(batch[0], "train", "target")
 
-    def on_train_batch_end(
-        self,
-        trainer: pl.Trainer,
-        pl_module: pl.LightningModule,
-        outputs: Any,
-        batch: Any,
-        batch_idx: int,
-    ) -> None:
-        if self.on_train and batch_idx < self.n_batches:
+    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx: int) -> None:
+        if not self.on_train:
+            return
+
+        if batch_idx < self.n_batches:
             self._unwrap_forward()
-        elif (
-            self.on_train and batch_idx == self.n_batches and not self.log_on_epoch_end
-        ):
-            self._log_audio("train")
-            self._clear_saved_batches("train")
+
+            # ✅ 무조건 뜨게: 첫 배치가 끝나면 바로 로그
+            if batch_idx == 0 and trainer.global_step % 1000 == 0:
+                self._log_audio("train", trainer)
 
     def on_train_epoch_end(
         self,
@@ -180,20 +176,16 @@ class LogAudioCallback(Callback):
             self._wrap_forward("test")
             self._save_batch(batch[0], "test", "target")
 
-    def on_test_batch_end(
-        self,
-        trainer: pl.Trainer,
-        pl_module: pl.LightningModule,
-        outputs: Any,
-        batch: Any,
-        batch_idx: int,
-        dataloader_idx: int,
-    ) -> None:
-        if self.on_test and batch_idx < self.n_batches:
+    def on_test_batch_end(self, trainer, pl_module, outputs, batch, batch_idx: int, dataloader_idx: int = 0) -> None:
+        if not self.on_test:
+            return
+
+        if batch_idx < self.n_batches:
             self._unwrap_forward()
-        elif self.on_test and batch_idx == self.n_batches and not self.log_on_epoch_end:
-            self._log_audio("test")
-            self._clear_saved_batches("test")
+
+            if batch_idx == 0:
+                self._log_audio("test", trainer)
+                self._clear_saved_batches("test")
 
     def on_test_epoch_end(
         self,
@@ -219,11 +211,8 @@ class LogAudioCallback(Callback):
         self.saved_targets[split] = []
         self.saved_reconstructions[split] = []
 
-    def _log_audio(self, split: str) -> None:
-        if (
-            len(self.saved_targets[split]) == 0
-            or len(self.saved_reconstructions[split]) == 0
-        ):
+    def _log_audio(self, split: str, trainer: pl.Trainer) -> None:
+        if len(self.saved_targets[split]) == 0 or len(self.saved_reconstructions[split]) == 0:
             return
 
         targets = torch.cat(self.saved_targets[split], dim=0)
@@ -233,28 +222,14 @@ class LogAudioCallback(Callback):
             targets = targets[: self.max_audio_samples]
             reconstructions = reconstructions[: self.max_audio_samples]
 
-        signals = reduce(
-            lambda x, y: x + y, zip(targets, reconstructions)  # type: ignore
-        )
+        signals = reduce(lambda x, y: x + y, zip(targets, reconstructions))
         audio_signal = torch.hstack(signals).cpu()
 
-        if isinstance(self.model.logger, WandbLogger):
+        logger = trainer.logger  # ✅ 이걸로 고정 (pl_module.logger 말고)
+        if isinstance(logger, WandbLogger) and trainer.is_global_zero:
             audio_signal = audio_signal.squeeze().numpy()
-            audio = Audio(
-                audio_signal,
-                caption=f"{split}/audio",
-                sample_rate=self.save_audio_sr,
-            )
-            if self.model.logger is not None:
-                self.model.logger.experiment.log({f"{split}/audio": audio})
-        elif isinstance(self.model.logger, TensorBoardLogger):
-            outdir = Path(self.model.logger.log_dir).joinpath("audio")
-            outdir.mkdir(parents=True, exist_ok=True)
-            torchaudio.save(
-                str(outdir.joinpath(f"{split}.wav")),
-                audio_signal,
-                self.save_audio_sr,
-            )
+            audio = Audio(audio_signal, caption=f"{split}/audio", sample_rate=self.save_audio_sr)
+            logger.experiment.log({f"{split}/audio": audio})
 
 
 class CleanWandbCacheCallback(pl.Callback):
