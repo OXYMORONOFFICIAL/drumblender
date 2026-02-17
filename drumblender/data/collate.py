@@ -53,7 +53,7 @@ def pad_audio_params_collate(batch):
         # params ?먯꽌媛 湲몄씠媛 ?ㅻ? ???덈뒗 寃쎌슦(?? [3,64,F]?먯꽌 F媛 ?ㅻ쫫) ?⑤뵫
         p0 = params[0]
         if p0.dim() == 3:
-            # [P, M, F] -> F 湲곗??쇰줈 pad?댁꽌 [B, P, M, Fmax]
+            # [P, M, F] -> F 湲곗??쇰줈 pad?댁꽌 [B, P, M, Fmax] (Batch size, # of Param, # of Modal, max Frame len)
             # pad_sequence??[F] 1D留???諛쏆쑝?? (P*M, F)濡??댁꽌 pad ??蹂듭썝
             flats = []
             PM = p0.shape[0] * p0.shape[1]
