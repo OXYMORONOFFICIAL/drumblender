@@ -11,6 +11,7 @@ export WANDB_DIR="/workspace/drumblender/logs"
 # (선택) 파편화 완화. OOM 났던 환경이면 도움될 때가 있음
 export PYTORCH_CUDA_ALLOC_CONF="max_split_size_mb:128"
 
+# ### HIGHLIGHT: Use more validation batches for stable metrics and rotating val audio samples.
 drumblender fit -c /workspace/drumblender/cfg/05_all_parallel.yaml \
   --trainer.accelerator gpu \
   --trainer.devices 1 \
@@ -19,6 +20,7 @@ drumblender fit -c /workspace/drumblender/cfg/05_all_parallel.yaml \
   --trainer.log_every_n_steps 10 \
   --trainer.num_sanity_val_steps 0 \
   --trainer.val_check_interval 0.25 \
+  --trainer.limit_val_batches 8 \
   --trainer.default_root_dir /workspace/drumblender/lightning_logs \
   --trainer.logger pytorch_lightning.loggers.WandbLogger \
   --trainer.logger.init_args.project "$WANDB_PROJECT" \

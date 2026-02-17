@@ -44,8 +44,10 @@ trainer:
     - class_path: pytorch_lightning.callbacks.early_stopping.EarlyStopping
       init_args:
         monitor: validation/loss
-        patience: 40
+        patience: 15
         check_finite: true
+        # ### HIGHLIGHT: Count patience at epoch boundaries even when validation runs multiple times per epoch.
+        check_on_train_epoch_end: true
     - class_path: pytorch_lightning.callbacks.LearningRateMonitor
     - class_path: drumblender.callbacks.LogAudioCallback
       init_args:

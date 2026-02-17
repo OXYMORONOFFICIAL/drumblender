@@ -47,6 +47,10 @@ class LogAudioCallback(Callback):
         self.log_on_epoch_end = log_on_epoch_end
         self.max_audio_samples = max_audio_samples
 
+        # ### HIGHLIGHT: Rotate validation audio source batch across validation runs.
+        self._val_round = 0
+        self._val_target_batch_idx = 0
+
     # Store a local reference to the model on setup
     def setup(
         self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str
@@ -117,7 +121,8 @@ class LogAudioCallback(Callback):
         batch_idx: int,
         dataloader_idx: int = 0,
     ) -> None:
-        if self.on_val and batch_idx < self.n_batches:
+        # ### HIGHLIGHT: Capture a rotated validation batch instead of always using batch 0.
+        if self.on_val and batch_idx == self._val_target_batch_idx:
             self._wrap_forward("val")
             self._save_batch(batch[0], "val", "target")
 
@@ -130,11 +135,29 @@ class LogAudioCallback(Callback):
         batch_idx: int,
         dataloader_idx: int = 0,
     ) -> None:
-        if self.on_val and batch_idx < self.n_batches:
+        # ### HIGHLIGHT: Finish capture for the currently selected validation batch.
+        if self.on_val and batch_idx == self._val_target_batch_idx:
             self._unwrap_forward()
-        elif self.on_val and batch_idx == self.n_batches and not self.log_on_epoch_end:
-            self._log_audio("val")
-            self._clear_saved_batches("val")
+            if not self.log_on_epoch_end:
+                self._log_audio("val")
+                self._clear_saved_batches("val")
+
+    # ### HIGHLIGHT: Select the next validation batch index for audio logging.
+    def on_validation_start(
+        self,
+        trainer: pl.Trainer,
+        pl_module: pl.LightningModule,
+    ) -> None:
+        if not self.on_val:
+            return
+
+        num_val_batches = trainer.num_val_batches
+        if isinstance(num_val_batches, (list, tuple)):
+            num_val_batches = num_val_batches[0] if len(num_val_batches) > 0 else 0
+
+        num_val_batches = max(int(num_val_batches), 1)
+        self._val_target_batch_idx = self._val_round % num_val_batches
+        self._val_round += 1
 
     def on_validation_epoch_end(
         self,

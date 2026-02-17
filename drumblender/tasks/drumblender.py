@@ -287,12 +287,46 @@ class DrumBlender(pl.LightningModule):
 
     def training_step(self, batch, batch_idx: int):
         loss, _ = self._do_step(batch)
-        self.log("train/loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        # ### HIGHLIGHT: Log a dedicated per-step training loss for denser WandB curves.
+        self.log(
+            "train/loss_step",
+            loss,
+            on_step=True,
+            on_epoch=False,
+            prog_bar=True,
+            logger=True,
+        )
+        # ### HIGHLIGHT: Keep the epoch-aggregated loss for long-term trend monitoring.
+        self.log(
+            "train/loss",
+            loss,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=False,
+            logger=True,
+        )
         return loss
 
     def validation_step(self, batch, batch_idx: int):
         loss, _ = self._do_step(batch)
-        self.log("validation/loss", loss)
+        # ### HIGHLIGHT: Log validation loss at each validation step for finer monitoring.
+        self.log(
+            "validation/loss_step",
+            loss,
+            on_step=True,
+            on_epoch=False,
+            prog_bar=True,
+            logger=True,
+        )
+        # ### HIGHLIGHT: Keep epoch-level validation loss for scheduler/early-stopping.
+        self.log(
+            "validation/loss",
+            loss,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            logger=True,
+        )
         return loss
 
     def test_step(self, batch, batch_idx: int):
