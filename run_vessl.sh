@@ -1,26 +1,30 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+cd /workspace/drumblender
+
 WANDB_PROJECT="${WANDB_PROJECT:-drumblender}"
 WANDB_NAME="${WANDB_NAME:-run_$(date +%Y%m%d_%H%M%S)}"
-WANDB_DIR="${WANDB_DIR:-/home/drumblender/logs/wandb}"
+WANDB_DIR="${WANDB_DIR:-/workspace/drumblender/logs/wandb}"
 RUN_SEED="${RUN_SEED:-20260218}"
 
-CFG="/home/drumblender/cfg/05_all_parallel.yaml"
-DATA_DIR="/mnt/datasets/modal_features/processed_modal_flat"
+CFG="${CFG:-/workspace/drumblender/cfg/05_all_parallel.yaml}"
+DATA_DIR="${DATA_DIR:-/mnt/datasets/modal_features/processed_modal_flat}"
+NUM_DEVICES="${NUM_DEVICES:-2}"
+BATCH_SIZE="${BATCH_SIZE:-2}"
+NUM_WORKERS="${NUM_WORKERS:-0}"
+VAL_CHECK_INTERVAL="${VAL_CHECK_INTERVAL:-0.1}"
+LIMIT_VAL_BATCHES="${LIMIT_VAL_BATCHES:-8}"
+USE_BUCKETING="${USE_BUCKETING:-false}"
 
-# Optional: helps with CUDA memory fragmentation in long runs.
-export PYTORCH_CUDA_ALLOC_CONF="max_split_size_mb:128"
 export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0,1}"
-export NCCL_P2P_DISABLE="${NCCL_P2P_DISABLE:-1}"
-export NCCL_IB_DISABLE="${NCCL_IB_DISABLE:-1}"
-export NCCL_DEBUG="${NCCL_DEBUG:-WARN}"
-export TORCH_DISTRIBUTED_DEBUG="${TORCH_DISTRIBUTED_DEBUG:-DETAIL}"
+export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-max_split_size_mb:128}"
 
 if [[ ! -f "$CFG" ]]; then
   echo "Config not found: $CFG"
   exit 1
 fi
+
 if [[ ! -f "$DATA_DIR/metadata.json" ]]; then
   echo "Dataset metadata not found: $DATA_DIR/metadata.json"
   exit 1
@@ -29,15 +33,15 @@ fi
 drumblender fit -c "$CFG" \
   --seed_everything "$RUN_SEED" \
   --trainer.accelerator gpu \
-  --trainer.devices 2 \
-  --trainer.strategy ddp_find_unused_parameters_false \
+  --trainer.devices "$NUM_DEVICES" \
+  --trainer.strategy ddp \
   --trainer.precision 32 \
   --trainer.max_epochs -1 \
   --trainer.log_every_n_steps 40 \
   --trainer.num_sanity_val_steps 0 \
-  --trainer.val_check_interval 0.1 \
-  --trainer.limit_val_batches 8 \
-  --trainer.default_root_dir /home/drumblender/lightning_logs \
+  --trainer.val_check_interval "$VAL_CHECK_INTERVAL" \
+  --trainer.limit_val_batches "$LIMIT_VAL_BATCHES" \
+  --trainer.default_root_dir /workspace/drumblender/lightning_logs \
   --trainer.logger pytorch_lightning.loggers.WandbLogger \
   --trainer.logger.init_args.project "$WANDB_PROJECT" \
   --trainer.logger.init_args.name "$WANDB_NAME" \
@@ -47,13 +51,13 @@ drumblender fit -c "$CFG" \
   --data.data_dir "$DATA_DIR" \
   --data.meta_file metadata.json \
   --data.dataset_class drumblender.data.AudioWithParametersDataset \
-  --data.dataset_kwargs "{parameter_key: feature_file, split_strategy: sample_pack, expected_num_modes: 64, seed: $RUN_SEED, cache_lengths: false}" \
+  --data.dataset_kwargs "{parameter_key: feature_file, split_strategy: sample_pack, expected_num_modes: 64, seed: $RUN_SEED}" \
   --data.seed "$RUN_SEED" \
   --data.sample_rate 48000 \
   --data.num_samples null \
-  --data.batch_size 2 \
-  --data.num_workers 0 \
+  --data.batch_size "$BATCH_SIZE" \
+  --data.num_workers "$NUM_WORKERS" \
   --data.skip_prepare_data true \
-  --data.use_bucketing false \
+  --data.use_bucketing "$USE_BUCKETING" \
   --data.bucket_boundaries "[48000, 96000, 192000, 384000]" \
   --data.drop_last true
