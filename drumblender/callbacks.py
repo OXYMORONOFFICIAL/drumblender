@@ -29,11 +29,16 @@ class LogAudioCallback(Callback):
         on_test: bool,
         save_audio_sr: int = 48000,
         n_batches: int = 1,
-        log_on_epoch_end: bool = False,
+        log_on_epoch_end: bool = True,
         max_audio_samples: int = 8,  # Limit the number of samples logged to W&B
         train_log_every_n_steps: int = 2000,
         val_log_every_n_steps: int = 2000,
     ):
+        # ### HIGHLIGHT: Keep legacy constructor compatibility; cadence args are intentionally ignored.
+        _ = log_on_epoch_end
+        _ = train_log_every_n_steps
+        _ = val_log_every_n_steps
+
         self.on_train = on_train
         self.on_val = on_val
         self.on_test = on_test
@@ -46,18 +51,15 @@ class LogAudioCallback(Callback):
             train=[], val=[], test=[]
         )
 
-        self.log_on_epoch_end = log_on_epoch_end
+        # ### HIGHLIGHT: Force epoch-only audio logging for stable and predictable cadence.
+        self.log_on_epoch_end = True
         self.max_audio_samples = max_audio_samples
-        self.train_log_every_n_steps = max(1, int(train_log_every_n_steps))
-        self.val_log_every_n_steps = max(1, int(val_log_every_n_steps))
 
         # ### HIGHLIGHT: Rotate validation audio source batch across validation runs.
         self._val_round = 0
         self._val_target_batch_idx = 0
-        # ### HIGHLIGHT: Gate audio logging by global-step cadence.
-        self._next_train_log_step = 0
-        self._next_val_log_step = 0
-        self._should_log_val_this_round = True
+        # ### HIGHLIGHT: Gate val audio to epoch-boundary validation only.
+        self._log_val_this_round = True
         self._capturing_train_batch = False
 
     # Store a local reference to the model on setup
@@ -100,12 +102,7 @@ class LogAudioCallback(Callback):
         if not self.on_train:
             return
 
-        should_capture = False
-        if self.log_on_epoch_end:
-            should_capture = batch_idx < self.n_batches
-        else:
-            # ### HIGHLIGHT: Capture one train batch whenever the cadence is reached.
-            should_capture = trainer.global_step >= self._next_train_log_step
+        should_capture = batch_idx < self.n_batches
 
         if should_capture:
             self._wrap_forward("train")
@@ -132,20 +129,13 @@ class LogAudioCallback(Callback):
         if self._capturing_train_batch:
             self._unwrap_forward()
             self._capturing_train_batch = False
-            if not self.log_on_epoch_end:
-                self._log_audio("train", trainer)
-                self._clear_saved_batches("train")
-
-                # ### HIGHLIGHT: Move the next train-audio target to the next cadence slot.
-                while self._next_train_log_step <= trainer.global_step:
-                    self._next_train_log_step += self.train_log_every_n_steps
 
     def on_train_epoch_end(
         self,
         trainer: pl.Trainer,
         pl_module: pl.LightningModule,
     ) -> None:
-        if self.on_train and self.log_on_epoch_end:
+        if self.on_train:
             self._log_audio("train", trainer)
         self._clear_saved_batches("train")
 
@@ -164,7 +154,7 @@ class LogAudioCallback(Callback):
         # ### HIGHLIGHT: Capture a rotated validation batch instead of always using batch 0.
         if (
             self.on_val
-            and self._should_log_val_this_round
+            and self._log_val_this_round
             and batch_idx == self._val_target_batch_idx
         ):
             self._wrap_forward("val")
@@ -186,15 +176,10 @@ class LogAudioCallback(Callback):
         # ### HIGHLIGHT: Finish capture for the currently selected validation batch.
         if (
             self.on_val
-            and self._should_log_val_this_round
+            and self._log_val_this_round
             and batch_idx == self._val_target_batch_idx
         ):
             self._unwrap_forward()
-            if not self.log_on_epoch_end:
-                self._log_audio("val", trainer)
-                while self._next_val_log_step <= trainer.global_step:
-                    self._next_val_log_step += self.val_log_every_n_steps
-            self._clear_saved_batches("val")
 
     # ### HIGHLIGHT: Select the next validation batch index for audio logging.
     def on_validation_start(
@@ -209,13 +194,26 @@ class LogAudioCallback(Callback):
         if not self.on_val:
             return
 
+        # ### HIGHLIGHT: Only log val audio on the validation run that closes a train epoch.
+        self._log_val_this_round = True
+        if trainer.state.fn == "fit":
+            try:
+                completed = int(
+                    trainer.fit_loop.epoch_loop.batch_progress.current.completed
+                )
+                total = int(trainer.num_training_batches)
+                self._log_val_this_round = completed >= total
+            except Exception:
+                self._log_val_this_round = True
+
+        if not self._log_val_this_round:
+            return
+
         num_val_batches = trainer.num_val_batches
         if isinstance(num_val_batches, (list, tuple)):
             num_val_batches = num_val_batches[0] if len(num_val_batches) > 0 else 0
 
         num_val_batches = max(int(num_val_batches), 1)
-        # ### HIGHLIGHT: Log validation audio when global-step cadence is reached.
-        self._should_log_val_this_round = trainer.global_step >= self._next_val_log_step
         self._val_target_batch_idx = self._val_round % num_val_batches
         self._val_round += 1
 
@@ -228,10 +226,8 @@ class LogAudioCallback(Callback):
         if not trainer.is_global_zero:
             return
 
-        if self.on_val and self.log_on_epoch_end and self._should_log_val_this_round:
+        if self.on_val and self._log_val_this_round:
             self._log_audio("val", trainer)
-            while self._next_val_log_step <= trainer.global_step:
-                self._next_val_log_step += self.val_log_every_n_steps
         self._clear_saved_batches("val")
 
     def on_test_batch_start(
