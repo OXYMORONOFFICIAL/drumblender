@@ -30,6 +30,7 @@ drumblender fit -c "$CFG" \
   --trainer.accelerator gpu \
   --trainer.devices 2 \
   --trainer.strategy ddp \
+  --trainer.replace_sampler_ddp false \
   --trainer.precision 32 \
   --trainer.max_epochs 1 \
   --trainer.limit_train_batches 10 \
