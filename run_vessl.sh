@@ -30,7 +30,7 @@ drumblender fit -c "$CFG" \
   --seed_everything "$RUN_SEED" \
   --trainer.accelerator gpu \
   --trainer.devices 2 \
-  --trainer.strategy ddp_find_unused_parameters_true \
+  --trainer.strategy ddp_find_unused_parameters_false \
   --trainer.precision 32 \
   --trainer.max_epochs -1 \
   --trainer.log_every_n_steps 40 \
