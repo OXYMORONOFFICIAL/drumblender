@@ -80,6 +80,9 @@ class DrumBlender(pl.LightningModule):
         if test_metrics is not None:
             self.metrics = test_metrics
 
+        # ### HIGHLIGHT: Buffer validation losses to compute a true per-train-epoch metric.
+        self._validation_epoch_loss_buffer = []
+
     # def forward(
     #     self,
     #     original: torch.Tensor,
@@ -308,8 +311,25 @@ class DrumBlender(pl.LightningModule):
         )
         return loss
 
+    # ### HIGHLIGHT: Reset validation-epoch buffer at each train epoch boundary.
+    def on_train_epoch_start(self) -> None:
+        self._validation_epoch_loss_buffer = []
+
     def validation_step(self, batch, batch_idx: int):
         loss, _ = self._do_step(batch)
+        # ### HIGHLIGHT: Keep an internal monitor metric for LR scheduler / early stopping.
+        self.log(
+            "validation/loss_monitor",
+            loss,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=False,
+            logger=False,
+        )
+
+        # ### HIGHLIGHT: Build a true per-epoch validation mean across all checks in the epoch.
+        self._validation_epoch_loss_buffer.append(loss.detach())
+
         # ### HIGHLIGHT: Align validation step-loss x-axis with training global_step in WandB.
         if batch_idx == 0:
             if isinstance(self.logger, WandbLogger):
@@ -327,16 +347,22 @@ class DrumBlender(pl.LightningModule):
                     logger=True,
                 )
 
-        # ### HIGHLIGHT: Keep epoch-level validation loss for scheduler/early-stopping.
+        return loss
+
+    # ### HIGHLIGHT: Log one validation epoch-loss value per train epoch (aligned with train/loss_epoch cadence).
+    def on_train_epoch_end(self) -> None:
+        if len(self._validation_epoch_loss_buffer) == 0:
+            return
+
+        val_epoch_loss = torch.stack(self._validation_epoch_loss_buffer).mean()
         self.log(
             "validation/loss_epoch",
-            loss,
+            val_epoch_loss,
             on_step=False,
-            on_epoch=True,
+            on_epoch=False,
             prog_bar=True,
             logger=True,
         )
-        return loss
 
     def test_step(self, batch, batch_idx: int):
         loss, y_hat = self._do_step(batch)

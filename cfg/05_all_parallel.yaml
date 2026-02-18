@@ -21,9 +21,9 @@ optimizer:
 lr_scheduler:
   class_path: pytorch_lightning.cli.ReduceLROnPlateau
   init_args:
-    monitor: validation/loss_epoch
+    monitor: validation/loss_monitor
     factor: 0.5
-    patience: 20
+    patience: 10
 data: data/percussion.yaml
 trainer:
   devices: 1
@@ -43,8 +43,8 @@ trainer:
   callbacks:
     - class_path: pytorch_lightning.callbacks.early_stopping.EarlyStopping
       init_args:
-        monitor: validation/loss_epoch
-        patience: 15
+        monitor: validation/loss_monitor
+        patience: 20
         check_finite: true
         # ### HIGHLIGHT: Count patience at epoch boundaries even when validation runs multiple times per epoch.
         check_on_train_epoch_end: true
@@ -78,4 +78,4 @@ trainer:
     #     init_val: 2
     #     max_trials: 25
     #     batch_arg_name: batch_size
-seed_everything: 396818285
+seed_everything: 20260218

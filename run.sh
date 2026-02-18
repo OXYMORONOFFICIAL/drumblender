@@ -4,6 +4,7 @@ set -euo pipefail
 WANDB_PROJECT="${WANDB_PROJECT:-drumblender}"
 WANDB_NAME="${WANDB_NAME:-run_$(date +%Y%m%d_%H%M%S)}"
 WANDB_DIR="${WANDB_DIR:-/workspace/drumblender/logs/wandb}"
+RUN_SEED="${RUN_SEED:-20260218}"
 
 CFG="/workspace/drumblender/cfg/05_all_parallel.yaml"
 DATA_DIR="/private/datasets/modal_features/processed_modal_flat"
@@ -13,6 +14,7 @@ export PYTORCH_CUDA_ALLOC_CONF="max_split_size_mb:128"
 
 # ### HIGHLIGHT: Use more validation batches for stable metrics and rotating val audio samples.
 drumblender fit -c /workspace/drumblender/cfg/05_all_parallel.yaml \
+  --seed_everything "$RUN_SEED" \
   --trainer.accelerator gpu \
   --trainer.devices 1 \
   --trainer.precision 32 \
@@ -31,7 +33,8 @@ drumblender fit -c /workspace/drumblender/cfg/05_all_parallel.yaml \
   --data.data_dir "$DATA_DIR" \
   --data.meta_file metadata.json \
   --data.dataset_class drumblender.data.AudioWithParametersDataset \
-  --data.dataset_kwargs "{parameter_key: feature_file, split_strategy: sample_pack, expected_num_modes: 64}" \
+  --data.dataset_kwargs "{parameter_key: feature_file, split_strategy: sample_pack, expected_num_modes: 64, seed: $RUN_SEED}" \
+  --data.seed "$RUN_SEED" \
   --data.sample_rate 48000 \
   --data.num_samples null \
   --data.batch_size 1 \
