@@ -359,7 +359,7 @@ class DrumBlender(pl.LightningModule):
             "validation/loss_epoch",
             val_epoch_loss,
             on_step=False,
-            on_epoch=False,
+            on_epoch=True,
             prog_bar=True,
             logger=True,
         )
