@@ -21,7 +21,7 @@ drumblender fit -c /workspace/drumblender/cfg/05_all_parallel.yaml \
   --trainer.max_epochs -1 \
   --trainer.log_every_n_steps 40 \
   --trainer.num_sanity_val_steps 0 \
-  --trainer.val_check_interval 0.25 \
+  --trainer.val_check_interval 0.1 \
   --trainer.limit_val_batches 8 \
   --trainer.default_root_dir /workspace/drumblender/lightning_logs \
   --trainer.logger pytorch_lightning.loggers.WandbLogger \

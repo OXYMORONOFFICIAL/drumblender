@@ -274,9 +274,11 @@ class LogAudioCallback(Callback):
         logger = trainer.logger
         if isinstance(logger, WandbLogger) and trainer.is_global_zero:
             audio_signal = audio_signal.squeeze().numpy()
-            audio = Audio(audio_signal, caption=f"{split}/audio", sample_rate=self.save_audio_sr)
+            # ### HIGHLIGHT: Unify W&B section names: val/* -> validation/*.
+            split_key = "validation" if split == "val" else split
+            audio = Audio(audio_signal, caption=f"{split_key}/audio", sample_rate=self.save_audio_sr)
             # ### HIGHLIGHT: Force audio x-axis to follow trainer/global_step.
-            logger.experiment.log({f"{split}/audio": audio}, step=int(trainer.global_step))
+            logger.experiment.log({f"{split_key}/audio": audio}, step=int(trainer.global_step))
 
 
 class CleanWandbCacheCallback(pl.Callback):
