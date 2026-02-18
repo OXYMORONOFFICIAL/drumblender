@@ -17,7 +17,8 @@ if [[ ! -f "$DATA_DIR/metadata.json" ]]; then
   exit 1
 fi
 
-python -m drumblender.cli fit -c "$CFG" \
+echo "[debug_fit_1gpu] starting..."
+drumblender fit -c "$CFG" \
   --seed_everything "$SEED" \
   --trainer.accelerator gpu \
   --trainer.devices 1 \
@@ -43,4 +44,4 @@ python -m drumblender.cli fit -c "$CFG" \
   --data.skip_prepare_data true \
   --data.use_bucketing false \
   --data.drop_last true
-
+echo "[debug_fit_1gpu] done."
