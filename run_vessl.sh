@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env bash
+#!/usr/bin/env bash
 set -euo pipefail
 
 WANDB_PROJECT="${WANDB_PROJECT:-drumblender}"
@@ -12,10 +12,10 @@ DATA_DIR="/mnt/datasets/modal_features/processed_modal_flat"
 # Optional: helps with CUDA memory fragmentation in long runs.
 export PYTORCH_CUDA_ALLOC_CONF="max_split_size_mb:128"
 export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0,1}"
-export WANDB_START_METHOD="${WANDB_START_METHOD:-thread}"
 export NCCL_P2P_DISABLE="${NCCL_P2P_DISABLE:-1}"
 export NCCL_IB_DISABLE="${NCCL_IB_DISABLE:-1}"
 export NCCL_DEBUG="${NCCL_DEBUG:-WARN}"
+export TORCH_DISTRIBUTED_DEBUG="${TORCH_DISTRIBUTED_DEBUG:-DETAIL}"
 
 if [[ ! -f "$CFG" ]]; then
   echo "Config not found: $CFG"
@@ -30,7 +30,7 @@ drumblender fit -c "$CFG" \
   --seed_everything "$RUN_SEED" \
   --trainer.accelerator gpu \
   --trainer.devices 2 \
-  --trainer.strategy ddp_find_unused_parameters_false \
+  --trainer.strategy ddp_find_unused_parameters_true \
   --trainer.precision 32 \
   --trainer.max_epochs -1 \
   --trainer.log_every_n_steps 40 \
@@ -43,17 +43,19 @@ drumblender fit -c "$CFG" \
   --trainer.logger.init_args.name "$WANDB_NAME" \
   --trainer.logger.init_args.save_dir "$WANDB_DIR" \
   --trainer.logger.init_args.log_model false \
+  --trainer.callbacks.2.init_args.on_train false \
+  --trainer.callbacks.2.init_args.on_val false \
   --data.class_path drumblender.data.AudioDataModule \
   --data.data_dir "$DATA_DIR" \
   --data.meta_file metadata.json \
   --data.dataset_class drumblender.data.AudioWithParametersDataset \
-  --data.dataset_kwargs "{parameter_key: feature_file, split_strategy: sample_pack, expected_num_modes: 64, seed: $RUN_SEED}" \
+  --data.dataset_kwargs "{parameter_key: feature_file, split_strategy: sample_pack, expected_num_modes: 64, seed: $RUN_SEED, cache_lengths: false}" \
   --data.seed "$RUN_SEED" \
   --data.sample_rate 48000 \
   --data.num_samples null \
-  --data.batch_size 1 \
+  --data.batch_size 2 \
   --data.num_workers 0 \
   --data.skip_prepare_data true \
-  --data.use_bucketing true \
+  --data.use_bucketing false \
   --data.bucket_boundaries "[48000, 96000, 192000, 384000]" \
   --data.drop_last true

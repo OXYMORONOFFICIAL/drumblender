@@ -349,6 +349,7 @@ class AudioWithParametersDataset(Dataset):
         expected_num_modes: Optional[int] = None,
         split_train_ratio: float = 0.8,
         split_val_ratio: float = 0.1,
+        cache_lengths: bool = True,
     ):
         super().__init__()
         self.data_dir = Path(data_dir)
@@ -365,6 +366,7 @@ class AudioWithParametersDataset(Dataset):
         self.expected_num_modes = expected_num_modes
         self.split_train_ratio = split_train_ratio
         self.split_val_ratio = split_val_ratio
+        self.cache_lengths = cache_lengths
 
         if not self.data_dir.exists():
             raise FileNotFoundError(f"Dataset dir not found: {self.data_dir}")
@@ -414,20 +416,24 @@ class AudioWithParametersDataset(Dataset):
                     "Invalid split strategy. Expected one of 'sample_pack' or 'random'."
                 )
 
-        # Cache lengths for bucketing.
-        self.lengths = []
-        for k in self.file_list:
-            item = self.metadata[k]
-            if "num_samples" in item:
-                self.lengths.append(int(item["num_samples"]))
-            else:
-                wav_path = self.data_dir.joinpath(item["filename"])
-                try:
-                    info = torchaudio.info(wav_path)
-                    self.lengths.append(int(info.num_frames))
-                except Exception:
-                    w, _ = torchaudio.load(wav_path)
-                    self.lengths.append(int(w.shape[-1]))
+        # ### HIGHLIGHT: Optional eager length-cache to avoid expensive startup in DDP.
+        # Keep default behavior (cache on) for existing bucketing workflows.
+        if self.cache_lengths:
+            self.lengths = []
+            for k in self.file_list:
+                item = self.metadata[k]
+                if "num_samples" in item:
+                    self.lengths.append(int(item["num_samples"]))
+                else:
+                    wav_path = self.data_dir.joinpath(item["filename"])
+                    try:
+                        info = torchaudio.info(wav_path)
+                        self.lengths.append(int(info.num_frames))
+                    except Exception:
+                        w, _ = torchaudio.load(wav_path)
+                        self.lengths.append(int(w.shape[-1]))
+        else:
+            self.lengths = None
 
     def __len__(self):
         return len(self.file_list)
