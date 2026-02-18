@@ -308,6 +308,7 @@ class DrumBlender(pl.LightningModule):
             on_epoch=True,
             prog_bar=False,
             logger=True,
+            sync_dist=True,
         )
         return loss
 
@@ -325,6 +326,7 @@ class DrumBlender(pl.LightningModule):
             on_epoch=True,
             prog_bar=False,
             logger=False,
+            sync_dist=True,
         )
 
         # ### HIGHLIGHT: Build a true per-epoch validation mean across all checks in the epoch.
@@ -363,6 +365,7 @@ class DrumBlender(pl.LightningModule):
             on_epoch=True,
             prog_bar=True,
             logger=True,
+            sync_dist=True,
         )
 
     def test_step(self, batch, batch_idx: int):
