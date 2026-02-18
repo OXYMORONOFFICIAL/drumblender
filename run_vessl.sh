@@ -43,8 +43,6 @@ drumblender fit -c "$CFG" \
   --trainer.logger.init_args.name "$WANDB_NAME" \
   --trainer.logger.init_args.save_dir "$WANDB_DIR" \
   --trainer.logger.init_args.log_model false \
-  --trainer.callbacks.2.init_args.on_train false \
-  --trainer.callbacks.2.init_args.on_val false \
   --data.class_path drumblender.data.AudioDataModule \
   --data.data_dir "$DATA_DIR" \
   --data.meta_file metadata.json \
