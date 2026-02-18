@@ -93,6 +93,10 @@ class LogAudioCallback(Callback):
         batch: Any,
         batch_idx: int,
     ) -> None:
+        # ### HIGHLIGHT: Avoid forward monkey-patching on non-zero DDP ranks.
+        if not trainer.is_global_zero:
+            return
+
         if not self.on_train:
             return
 
@@ -118,6 +122,10 @@ class LogAudioCallback(Callback):
         batch: Any,
         batch_idx: int,
     ) -> None:
+        # ### HIGHLIGHT: Keep non-zero ranks out of callback logging flow in DDP.
+        if not trainer.is_global_zero:
+            return
+
         if not self.on_train:
             return
 
@@ -149,6 +157,10 @@ class LogAudioCallback(Callback):
         batch_idx: int,
         dataloader_idx: int = 0,
     ) -> None:
+        # ### HIGHLIGHT: Keep validation audio logging on rank 0 only.
+        if not trainer.is_global_zero:
+            return
+
         # ### HIGHLIGHT: Capture a rotated validation batch instead of always using batch 0.
         if (
             self.on_val
@@ -167,6 +179,10 @@ class LogAudioCallback(Callback):
         batch_idx: int,
         dataloader_idx: int = 0,
     ) -> None:
+        # ### HIGHLIGHT: Keep validation audio logging on rank 0 only.
+        if not trainer.is_global_zero:
+            return
+
         # ### HIGHLIGHT: Finish capture for the currently selected validation batch.
         if (
             self.on_val
@@ -186,6 +202,10 @@ class LogAudioCallback(Callback):
         trainer: pl.Trainer,
         pl_module: pl.LightningModule,
     ) -> None:
+        # ### HIGHLIGHT: Keep validation audio scheduling on rank 0 only.
+        if not trainer.is_global_zero:
+            return
+
         if not self.on_val:
             return
 
@@ -204,6 +224,10 @@ class LogAudioCallback(Callback):
         trainer: pl.Trainer,
         pl_module: pl.LightningModule,
     ) -> None:
+        # ### HIGHLIGHT: Keep validation audio logging on rank 0 only.
+        if not trainer.is_global_zero:
+            return
+
         if self.on_val and self.log_on_epoch_end and self._should_log_val_this_round:
             self._log_audio("val", trainer)
             while self._next_val_log_step <= trainer.global_step:
@@ -218,11 +242,19 @@ class LogAudioCallback(Callback):
         batch_idx: int,
         dataloader_idx: int,
     ) -> None:
+        # ### HIGHLIGHT: Keep test audio logging on rank 0 only.
+        if not trainer.is_global_zero:
+            return
+
         if self.on_test and batch_idx < self.n_batches:
             self._wrap_forward("test")
             self._save_batch(batch[0], "test", "target")
 
     def on_test_batch_end(self, trainer, pl_module, outputs, batch, batch_idx: int, dataloader_idx: int = 0) -> None:
+        # ### HIGHLIGHT: Keep test audio logging on rank 0 only.
+        if not trainer.is_global_zero:
+            return
+
         if not self.on_test:
             return
 
@@ -238,6 +270,10 @@ class LogAudioCallback(Callback):
         trainer: pl.Trainer,
         pl_module: pl.LightningModule,
     ) -> None:
+        # ### HIGHLIGHT: Keep test audio logging on rank 0 only.
+        if not trainer.is_global_zero:
+            return
+
         if self.on_test and self.log_on_epoch_end:
             self._log_audio("test", trainer)
         self._clear_saved_batches("test")
