@@ -346,6 +346,12 @@ class SaveConfigCallbackWanb(SaveConfigCallback):
         self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str
     ) -> None:
         super().setup(trainer, pl_module, stage)
+        # ### HIGHLIGHT: Avoid touching wandb.experiment during DDP setup.
+        # On some environments this can stall before the first training step.
+        world_size = getattr(trainer, "world_size", 1)
+        if world_size and int(world_size) > 1:
+            return
+
         if isinstance(trainer.logger, WandbLogger) and trainer.is_global_zero:
             config = Path(trainer.log_dir).joinpath("config.yaml")
             if not config.exists():

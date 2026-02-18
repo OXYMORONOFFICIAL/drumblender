@@ -58,4 +58,3 @@ drumblender fit -c "$CFG" \
   --data.use_bucketing false \
   --data.drop_last true
 echo "[debug_fit_2gpu_logger_only] done."
-
