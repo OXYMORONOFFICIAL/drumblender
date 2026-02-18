@@ -21,6 +21,8 @@ class BucketingBatchSampler(Sampler[List[int]]):
         shuffle: bool = True,
         drop_last: bool = True,
         seed: int = 42,
+        num_replicas: int = 1,
+        rank: int = 0,
     ):
         self.lengths = list(map(int, lengths))
         self.batch_size = int(batch_size)
@@ -28,7 +30,14 @@ class BucketingBatchSampler(Sampler[List[int]]):
         self.shuffle = shuffle
         self.drop_last = drop_last
         self.seed = seed
+        self.num_replicas = int(num_replicas)
+        self.rank = int(rank)
         self.epoch = 0
+
+        if self.num_replicas < 1:
+            raise ValueError("num_replicas must be >= 1")
+        if self.rank < 0 or self.rank >= self.num_replicas:
+            raise ValueError("rank must be in [0, num_replicas)")
 
         # indices -> bucket_id
         self.buckets = [[] for _ in range(len(self.boundaries) + 1)]
@@ -70,6 +79,26 @@ class BucketingBatchSampler(Sampler[List[int]]):
             perm = torch.randperm(len(batches), generator=g).tolist()
             batches = [batches[i] for i in perm]
 
+        # In distributed training, shard batches across ranks while keeping
+        # equal number of steps per rank to avoid DDP synchronization issues.
+        if self.num_replicas > 1:
+            total = len(batches)
+            if self.drop_last:
+                per_rank = total // self.num_replicas
+                total_size = per_rank * self.num_replicas
+                batches = batches[:total_size]
+            else:
+                per_rank = (total + self.num_replicas - 1) // self.num_replicas
+                total_size = per_rank * self.num_replicas
+                if total > 0 and total < total_size:
+                    extra = total_size - total
+                    batches.extend(batches[i % total] for i in range(extra))
+
+            if total_size > 0:
+                batches = batches[self.rank:total_size:self.num_replicas]
+            else:
+                batches = []
+
         yield from batches
 
     def __len__(self) -> int:
@@ -79,4 +108,9 @@ class BucketingBatchSampler(Sampler[List[int]]):
                 total += len(bucket) // self.batch_size
             else:
                 total += (len(bucket) + self.batch_size - 1) // self.batch_size
-        return total
+        if self.num_replicas == 1:
+            return total
+
+        if self.drop_last:
+            return total // self.num_replicas
+        return (total + self.num_replicas - 1) // self.num_replicas

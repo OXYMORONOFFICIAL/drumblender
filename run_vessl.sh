@@ -11,11 +11,11 @@ RUN_SEED="${RUN_SEED:-20260218}"
 CFG="${CFG:-/workspace/drumblender/cfg/05_all_parallel.yaml}"
 DATA_DIR="${DATA_DIR:-/mnt/datasets/modal_features/processed_modal_flat}"
 NUM_DEVICES="${NUM_DEVICES:-2}"
-BATCH_SIZE="${BATCH_SIZE:-4}"
+BATCH_SIZE="${BATCH_SIZE:-2}"
 NUM_WORKERS="${NUM_WORKERS:-6}"
 VAL_CHECK_INTERVAL="${VAL_CHECK_INTERVAL:-0.1}"
 LIMIT_VAL_BATCHES="${LIMIT_VAL_BATCHES:-8}"
-USE_BUCKETING="${USE_BUCKETING:-false}"
+USE_BUCKETING="${USE_BUCKETING:-true}"
 
 export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0,1}"
 export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-max_split_size_mb:128}"
@@ -34,7 +34,7 @@ drumblender fit -c "$CFG" \
   --seed_everything "$RUN_SEED" \
   --trainer.accelerator gpu \
   --trainer.devices "$NUM_DEVICES" \
-  --trainer.strategy ddp \
+  --trainer.strategy ddp_find_unused_parameters_false \
   --trainer.precision 32 \
   --trainer.max_epochs -1 \
   --trainer.log_every_n_steps 40 \

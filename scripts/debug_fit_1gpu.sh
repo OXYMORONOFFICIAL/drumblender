@@ -6,6 +6,9 @@ cd /workspace/drumblender
 CFG="${CFG:-/workspace/drumblender/cfg/05_all_parallel.yaml}"
 DATA_DIR="${DATA_DIR:-/mnt/datasets/modal_features/processed_modal_flat}"
 SEED="${SEED:-20260218}"
+BATCH_SIZE="${BATCH_SIZE:-1}"
+USE_BUCKETING="${USE_BUCKETING:-true}"
+NUM_WORKERS="${NUM_WORKERS:-4}"
 
 if [[ ! -f "$CFG" ]]; then
   echo "Config not found: $CFG"
@@ -40,9 +43,9 @@ drumblender fit -c "$CFG" \
   --data.seed "$SEED" \
   --data.sample_rate 48000 \
   --data.num_samples null \
-  --data.batch_size 2 \
-  --data.num_workers 0 \
+  --data.batch_size "$BATCH_SIZE" \
+  --data.num_workers "$NUM_WORKERS" \
   --data.skip_prepare_data true \
-  --data.use_bucketing false \
+  --data.use_bucketing "$USE_BUCKETING" \
   --data.drop_last true
 echo "[debug_fit_1gpu] done."

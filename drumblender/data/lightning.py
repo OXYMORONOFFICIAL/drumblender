@@ -199,8 +199,14 @@ class AudioDataModule(pl.LightningDataModule):
 
     ###
     def train_dataloader(self):
-        # 1) 길이 리스트 확보 (AudioWithParametersDataset에 self.lengths 캐시가 있어야 빠름)
         lengths = getattr(self.train_dataset, "lengths", None)
+        world_size = 1
+        global_rank = 0
+        current_epoch = 0
+        if getattr(self, "trainer", None) is not None:
+            world_size = int(getattr(self.trainer, "world_size", 1) or 1)
+            global_rank = int(getattr(self.trainer, "global_rank", 0) or 0)
+            current_epoch = int(getattr(self.trainer, "current_epoch", 0) or 0)
 
         if self.use_bucketing and lengths is not None:
             batch_sampler = BucketingBatchSampler(
@@ -210,7 +216,10 @@ class AudioDataModule(pl.LightningDataModule):
                 shuffle=True,
                 drop_last=self.drop_last,
                 seed=self.seed,
+                num_replicas=world_size,
+                rank=global_rank,
             )
+            batch_sampler.set_epoch(current_epoch)
 
             return DataLoader(
                 self.train_dataset,

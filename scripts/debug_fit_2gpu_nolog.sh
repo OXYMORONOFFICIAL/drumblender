@@ -6,6 +6,9 @@ cd /workspace/drumblender
 CFG="${CFG:-/workspace/drumblender/cfg/05_all_parallel.yaml}"
 DATA_DIR="${DATA_DIR:-/mnt/datasets/modal_features/processed_modal_flat}"
 SEED="${SEED:-20260218}"
+BATCH_SIZE="${BATCH_SIZE:-2}"
+USE_BUCKETING="${USE_BUCKETING:-true}"
+NUM_WORKERS="${NUM_WORKERS:-4}"
 
 export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0,1}"
 export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-max_split_size_mb:128}"
@@ -45,9 +48,9 @@ drumblender fit -c "$CFG" \
   --data.seed "$SEED" \
   --data.sample_rate 48000 \
   --data.num_samples null \
-  --data.batch_size 2 \
-  --data.num_workers 0 \
+  --data.batch_size "$BATCH_SIZE" \
+  --data.num_workers "$NUM_WORKERS" \
   --data.skip_prepare_data true \
-  --data.use_bucketing false \
+  --data.use_bucketing "$USE_BUCKETING" \
   --data.drop_last true
 echo "[debug_fit_2gpu_nolog] done."
