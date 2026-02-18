@@ -333,10 +333,11 @@ class DrumBlender(pl.LightningModule):
         # ### HIGHLIGHT: Align validation step-loss x-axis with training global_step in WandB.
         if batch_idx == 0:
             if isinstance(self.logger, WandbLogger):
-                self.logger.experiment.log(
-                    {"validation/loss_step": float(loss.detach().cpu())},
-                    step=int(self.global_step),
-                )
+                if self.trainer.is_global_zero:
+                    self.logger.experiment.log(
+                        {"validation/loss_step": float(loss.detach().cpu())},
+                        step=int(self.global_step),
+                    )
             else:
                 self.log(
                     "validation/loss_step",
