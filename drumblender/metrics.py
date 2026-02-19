@@ -8,6 +8,13 @@ import torchaudio
 from torchmetrics import Metric
 
 
+def _pad_to_min_length(x: torch.Tensor, min_len: int) -> torch.Tensor:
+    """Pad last dimension with zeros so STFT/MFCC kernels can run on short clips."""
+    if x.shape[-1] >= min_len:
+        return x
+    return torch.nn.functional.pad(x, (0, int(min_len - x.shape[-1])))
+
+
 class LogSpectralDistance(Metric):
     """
     Log Spectral Distance (LSD) metric.
@@ -34,12 +41,18 @@ class LogSpectralDistance(Metric):
             hop_length=self.hop_size,
             window=torch.hann_window(self.n_fft, device=x.device),
             return_complex=True,
+            # ### HIGHLIGHT: Use zero padding to avoid reflection artifacts on short clips.
+            pad_mode="constant",
         )
         return torch.log(torch.square(torch.abs(X)) + self.eps)
 
     def update(self, x: torch.Tensor, y: torch.Tensor) -> None:
         assert x.shape == y.shape
         assert x.ndim == 3 and x.shape[1] == 1, "Only mono audio is supported"
+        # ### HIGHLIGHT: Guard very short clips for large-STFT LSD settings.
+        min_len = max(int(self.n_fft), int(self.n_fft // 2 + 1))
+        x = _pad_to_min_length(x, min_len)
+        y = _pad_to_min_length(y, min_len)
         x = x.squeeze(1)
         y = y.squeeze(1)
 
@@ -85,6 +98,10 @@ class MFCCError(Metric):
     def update(self, x: torch.Tensor, y: torch.Tensor) -> None:
         assert x.shape == y.shape
         assert x.ndim == 3 and x.shape[1] == 1, "Only mono audio is supported"
+        # ### HIGHLIGHT: Ensure MFCC front-end has enough samples for n_fft.
+        min_len = max(int(self.n_fft), int(self.n_fft // 2 + 1))
+        x = _pad_to_min_length(x, min_len)
+        y = _pad_to_min_length(y, min_len)
         x = x.squeeze(1).cpu()
         y = y.squeeze(1).cpu()
 
@@ -144,6 +161,10 @@ class SpectralFluxOnsetError(Metric):
     def update(self, x: torch.Tensor, y: torch.Tensor) -> None:
         assert x.shape == y.shape
         assert x.ndim == 3 and x.shape[1] == 1, "Only mono audio is supported"
+        # ### HIGHLIGHT: Guard short clips for onset-STFT as well.
+        min_len = max(int(self.n_fft), int(self.n_fft // 2 + 1))
+        x = _pad_to_min_length(x, min_len)
+        y = _pad_to_min_length(y, min_len)
 
         x = self._onset_signal(x)
         y = self._onset_signal(y)

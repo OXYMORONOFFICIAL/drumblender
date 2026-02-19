@@ -58,8 +58,9 @@ class LogAudioCallback(Callback):
         # ### HIGHLIGHT: Rotate validation audio source batch across validation runs.
         self._val_round = 0
         self._val_target_batch_idx = 0
-        # ### HIGHLIGHT: Gate val audio to epoch-boundary validation only.
+        # ### HIGHLIGHT: Log validation audio once per training epoch.
         self._log_val_this_round = True
+        self._last_logged_val_audio_epoch = -1
         self._capturing_train_batch = False
 
     # Store a local reference to the model on setup
@@ -194,17 +195,12 @@ class LogAudioCallback(Callback):
         if not self.on_val:
             return
 
-        # ### HIGHLIGHT: Only log val audio on the validation run that closes a train epoch.
+        # ### HIGHLIGHT: De-duplicate val audio when multiple val runs happen in one epoch.
         self._log_val_this_round = True
         if trainer.state.fn == "fit":
-            try:
-                completed = int(
-                    trainer.fit_loop.epoch_loop.batch_progress.current.completed
-                )
-                total = int(trainer.num_training_batches)
-                self._log_val_this_round = completed >= total
-            except Exception:
-                self._log_val_this_round = True
+            self._log_val_this_round = (
+                int(trainer.current_epoch) != self._last_logged_val_audio_epoch
+            )
 
         if not self._log_val_this_round:
             return
@@ -228,6 +224,8 @@ class LogAudioCallback(Callback):
 
         if self.on_val and self._log_val_this_round:
             self._log_audio("val", trainer)
+            if trainer.state.fn == "fit":
+                self._last_logged_val_audio_epoch = int(trainer.current_epoch)
         self._clear_saved_batches("val")
 
     def on_test_batch_start(

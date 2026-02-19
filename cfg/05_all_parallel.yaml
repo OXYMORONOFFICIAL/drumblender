@@ -34,7 +34,7 @@ trainer:
   devices: 1
   accelerator: gpu
   # ### HIGHLIGHT: Stop runaway training by default; use scripts to override when needed.
-  max_epochs: 70
+  max_epochs: 90
   # logger:
   #   class_path: pytorch_lightning.loggers.WandbLogger
   #   init_args:
@@ -60,9 +60,11 @@ trainer:
         # ### HIGHLIGHT: Save checkpoints under repository-local `ckpt/` for easy reuse.
         dirpath: ckpt
         filename: epoch{epoch:03d}-step{step:08d}
+        # ### HIGHLIGHT: Avoid duplicated names like `epochepoch=...`.
+        auto_insert_metric_name: false
         monitor: validation/loss_monitor
         mode: min
-        save_top_k: 5
+        save_top_k: 10
         save_last: true
         save_on_train_epoch_end: true
     - class_path: pytorch_lightning.callbacks.LearningRateMonitor

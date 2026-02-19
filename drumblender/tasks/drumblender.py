@@ -287,10 +287,11 @@ class DrumBlender(pl.LightningModule):
             y_hat = y_hat * mask
 
         loss = self.loss_fn(y_hat, original)
-        return loss, y_hat
+        # ### HIGHLIGHT: Return the masked target for length-safe metric computation.
+        return loss, y_hat, original
 
     def training_step(self, batch, batch_idx: int):
-        loss, _ = self._do_step(batch)
+        loss, _, _ = self._do_step(batch)
         # ### HIGHLIGHT: Log a dedicated per-step training loss for denser WandB curves.
         self.log(
             "train/loss_step",
@@ -317,7 +318,7 @@ class DrumBlender(pl.LightningModule):
         self._validation_epoch_loss_buffer = []
 
     def validation_step(self, batch, batch_idx: int):
-        loss, _ = self._do_step(batch)
+        loss, _, _ = self._do_step(batch)
         # ### HIGHLIGHT: Keep an internal monitor metric for LR scheduler / early stopping.
         self.log(
             "validation/loss_monitor",
@@ -369,9 +370,10 @@ class DrumBlender(pl.LightningModule):
         )
 
     def test_step(self, batch, batch_idx: int):
-        loss, y_hat = self._do_step(batch)
+        loss, y_hat, target = self._do_step(batch)
         self.log("test/loss", loss)
         if hasattr(self, "metrics"):
             for name, metric in self.metrics.items():
-                self.log(f"test/{name}", metric(y_hat, batch[0]))
+                # ### HIGHLIGHT: Use the masked target (not raw batch[0]) so padded tails do not skew metrics.
+                self.log(f"test/{name}", metric(y_hat, target))
         return loss

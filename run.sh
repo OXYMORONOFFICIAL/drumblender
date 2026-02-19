@@ -12,7 +12,7 @@ CFG="${CFG:-/workspace/drumblender/cfg/05_all_parallel.yaml}"
 DATA_DIR="${DATA_DIR:-/private/datasets/modal_features/processed_modal_flat}"
 CKPT_DIR="${CKPT_DIR:-/workspace/drumblender/ckpt}"
 RESUME_CKPT="${RESUME_CKPT:-}"
-MAX_EPOCHS="${MAX_EPOCHS:-70}"
+MAX_EPOCHS="${MAX_EPOCHS:-90}"
 
 # ### HIGHLIGHT: Always create output directories used by logger/checkpoint callbacks.
 mkdir -p "$WANDB_DIR" "$CKPT_DIR" /workspace/drumblender/lightning_logs
