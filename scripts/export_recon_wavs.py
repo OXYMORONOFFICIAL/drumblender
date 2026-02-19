@@ -11,6 +11,28 @@ Outputs include:
 - A final tar.gz archive for transfer (scp-friendly)
 """
 
+"""
+HOW TO USE: 
+
+cd /root/drumblender
+
+python scripts/export_recon_wavs.py \
+  --config cfg/05_all_parallel.yaml \
+  --ckpt /root/drumblender/ckpt/last.ckpt \
+  --data-dir /root/datasets/modal_features/processed_modal_flat \
+  --meta-file metadata.json \
+  --split test \
+  --split-strategy sample_pack \
+  --parameter-key feature_file \
+  --expected-num-modes 64 \
+  --seed 20260218 \
+  --sample-rate 48000 \
+  --num-samples none \
+  --output-dir /root/drumblender/logs/recon_bundle_05_last \
+  --save-target \
+  --make-tar
+"""
+
 import argparse
 import csv
 import importlib
@@ -31,6 +53,38 @@ from tqdm import tqdm
 
 from drumblender.data.audio import AudioWithParametersDataset
 from drumblender.utils.model import load_model
+
+
+def _safe_relpath(path_str: str) -> Path:
+    """
+    Normalize a metadata path into a safe relative path (no absolute/root traversal).
+    """
+    rel = Path(path_str.replace("\\", "/"))
+    if rel.is_absolute():
+        # keep filename only for absolute paths
+        return Path(rel.name)
+
+    parts = []
+    for part in rel.parts:
+        if part in ("", ".", ".."):
+            continue
+        parts.append(part)
+    if len(parts) == 0:
+        return Path("unknown.wav")
+    return Path(*parts)
+
+
+def _export_rel_from_meta(meta: Dict[str, Any]) -> Path:
+    """
+    Prefer original pre-modal path for human-readable filenames.
+    Fallback to processed filename if original path is unavailable.
+    """
+    # ### HIGHLIGHT: build_modal_features.py stores original sample path as `orig_relpath`.
+    if isinstance(meta.get("orig_relpath"), str) and len(meta["orig_relpath"]) > 0:
+        return _safe_relpath(meta["orig_relpath"])
+    if isinstance(meta.get("filename"), str) and len(meta["filename"]) > 0:
+        return _safe_relpath(meta["filename"])
+    return Path("unknown.wav")
 
 
 def _optional_int(value: str) -> Optional[int]:
@@ -282,7 +336,7 @@ def main() -> None:
         for idx in tqdm(range(limit), desc="export"):
             meta_key = dataset.file_list[idx]
             meta = dataset.metadata[meta_key]
-            src_rel = Path(meta["filename"])
+            src_rel = _export_rel_from_meta(meta)
 
             waveform, params, length = dataset[idx]
             length_i = int(length)
@@ -306,8 +360,9 @@ def main() -> None:
                         raw_metric_sums[name] = raw_metric_sums.get(name, 0.0) + value
                         raw_metric_counts[name] = raw_metric_counts.get(name, 0) + 1
 
-            recon = y_hat.squeeze(0).detach().cpu()[:, :length_i]
-            target = waveform[:, :length_i]
+            # ### HIGHLIGHT: Save tensors exactly as used for loss/evaluation (padding included).
+            recon = y_hat.squeeze(0).detach().cpu()
+            target = x.squeeze(0).detach().cpu()
 
             recon_path = recon_root / src_rel
             recon_path.parent.mkdir(parents=True, exist_ok=True)
