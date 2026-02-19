@@ -12,7 +12,8 @@ CFG="${CFG:-/workspace/drumblender/cfg/05_all_parallel.yaml}"
 DATA_DIR="${DATA_DIR:-/private/datasets/modal_features/processed_modal_flat}"
 CKPT_DIR="${CKPT_DIR:-/workspace/drumblender/ckpt}"
 RESUME_CKPT="${RESUME_CKPT:-}"
-MAX_EPOCHS="${MAX_EPOCHS:-90}"
+MAX_EPOCHS="${MAX_EPOCHS:-125}"
+ACCUM_GRAD_BATCHES="${ACCUM_GRAD_BATCHES:-2}"
 
 # ### HIGHLIGHT: Always create output directories used by logger/checkpoint callbacks.
 mkdir -p "$WANDB_DIR" "$CKPT_DIR" /workspace/drumblender/lightning_logs
@@ -27,6 +28,7 @@ CMD=(
   --trainer.devices 1
   --trainer.precision 32
   --trainer.max_epochs "$MAX_EPOCHS"
+  --trainer.accumulate_grad_batches "$ACCUM_GRAD_BATCHES"
   --trainer.log_every_n_steps 40
   --trainer.num_sanity_val_steps 0
   --trainer.val_check_interval 0.1

@@ -12,7 +12,7 @@ CFG="${CFG:-/root/drumblender/cfg/05_all_parallel.yaml}"
 DATA_DIR="${DATA_DIR:-/root/datasets/modal_features/processed_modal_flat}"
 CKPT_DIR="${CKPT_DIR:-/root/drumblender/ckpt}"
 RESUME_CKPT="${RESUME_CKPT:-}"
-MAX_EPOCHS="${MAX_EPOCHS:-70}"
+MAX_EPOCHS="${MAX_EPOCHS:-125}"
 
 NUM_DEVICES="${NUM_DEVICES:-2}"
 BATCH_SIZE="${BATCH_SIZE:-2}"
