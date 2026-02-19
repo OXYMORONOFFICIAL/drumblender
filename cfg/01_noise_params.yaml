@@ -13,20 +13,26 @@ model:
     transient_parallel: false
     float32_matmul_precision: medium
 optimizer:
-  class_path: torch.optim.Adam
+  class_path: torch.optim.AdamW
   init_args:
-    lr: 0.0001
+    lr: 0.00005
+    weight_decay: 1e-6
 lr_scheduler:
   class_path: pytorch_lightning.cli.ReduceLROnPlateau
   init_args:
-    monitor: validation/loss
+    monitor: validation/loss_monitor
     factor: 0.5
-    patience: 20
+    patience: 9
+    # ### HIGHLIGHT: `min_lr` belongs to ReduceLROnPlateau (scheduler), not AdamW.
+    min_lr: 0.000001
+    threshold_mode: rel
+    threshold: 0.01
 data: data/percussion.yaml
 trainer:
   devices: 1
   accelerator: gpu
-  max_epochs: -1
+  # ### HIGHLIGHT: Stop runaway training by default; use scripts to override when needed.
+  max_epochs: 90
   # logger:
   #   class_path: pytorch_lightning.loggers.WandbLogger
   #   init_args:
@@ -41,17 +47,34 @@ trainer:
   callbacks:
     - class_path: pytorch_lightning.callbacks.early_stopping.EarlyStopping
       init_args:
-        monitor: validation/loss
-        patience: 40
+        monitor: validation/loss_monitor
+        patience: 15
+        min_delta: 0.005
         check_finite: true
+        # ### HIGHLIGHT: Count patience at epoch boundaries even when validation runs multiple times per epoch.
+        check_on_train_epoch_end: true
+    - class_path: pytorch_lightning.callbacks.ModelCheckpoint
+      init_args:
+        # ### HIGHLIGHT: Save checkpoints under repository-local `ckpt/` for easy reuse.
+        dirpath: ckpt
+        filename: epoch{epoch:03d}-step{step:08d}
+        # ### HIGHLIGHT: Avoid duplicated names like `epochepoch=...`.
+        auto_insert_metric_name: false
+        monitor: validation/loss_monitor
+        mode: min
+        save_top_k: 10
+        save_last: true
+        save_on_train_epoch_end: true
     - class_path: pytorch_lightning.callbacks.LearningRateMonitor
     - class_path: drumblender.callbacks.LogAudioCallback
       init_args:
         on_train: true
         on_val: true
-        on_test: true
+        on_test: false
         save_audio_sr: 48000
         n_batches: 1
+        log_on_epoch_end: true
+        max_audio_samples: 8
     # - class_path: drumblender.callbacks.CleanWandbCacheCallback
     #   init_args:
     #     every_n_epochs: 2
@@ -63,4 +86,4 @@ trainer:
     #     init_val: 2
     #     max_trials: 25
     #     batch_arg_name: batch_size
-seed_everything: 396818285
+seed_everything: 20260218

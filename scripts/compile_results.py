@@ -46,7 +46,7 @@ def main(arguments):
     for f in csv_files:
         sub_df = pd.read_csv(f)
         version = f.parent.name
-        assert version == "version_0"
+        assert version == "version_1"
 
         model_name = f.parent.parent.name
         for model in models:
