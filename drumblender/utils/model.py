@@ -3,6 +3,7 @@ Helpful utils for handling pre-trained models
 """
 import inspect
 from typing import Any
+from typing import Union
 
 import yaml
 from jsonargparse import ArgumentParser
@@ -26,16 +27,12 @@ def load_model(config: str, ckpt: str, include_data: bool = False):
 
     if include_data:
         config_parser.add_subclass_arguments(AudioDataModule, "data")
-        config = config_parser.parse_path(config)
     else:
-        # ### HIGHLIGHT: Accept both dict-style and string-style top-level `data` entries.
-        # Some configs use `data: data/percussion.yaml`, which should not block model-only loads.
-        config_parser.add_argument("--data", type=Any, default={})
-        with open(config, "r", encoding="utf-8") as f:
-            raw_cfg = yaml.safe_load(f)
-        if isinstance(raw_cfg, dict) and not isinstance(raw_cfg.get("data", {}), dict):
-            raw_cfg["data"] = {}
-        config = config_parser.parse_object(raw_cfg)
+        # ### HIGHLIGHT: Keep parse_path semantics (for relative nested config files),
+        # while allowing either dict-style or string-style top-level `data`.
+        config_parser.add_argument("--data", type=Union[dict, str, Any], default={})
+
+    config = config_parser.parse_path(config)
     init = config_parser.instantiate_classes(config)
 
     # Get the constructor arguments for the DrumBlender task and create a dictionary of
