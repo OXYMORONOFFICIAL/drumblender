@@ -17,8 +17,7 @@ MAX_EPOCHS="${MAX_EPOCHS:-125}"
 NUM_DEVICES="${NUM_DEVICES:-2}"
 BATCH_SIZE="${BATCH_SIZE:-2}"
 NUM_WORKERS="${NUM_WORKERS:-6}"
-VAL_CHECK_INTERVAL="${VAL_CHECK_INTERVAL:-0.1}"
-LIMIT_VAL_BATCHES="${LIMIT_VAL_BATCHES:-8}"
+VAL_CHECK_INTERVAL="${VAL_CHECK_INTERVAL:-1.0}"
 USE_BUCKETING="${USE_BUCKETING:-true}"
 
 export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0,1}"
@@ -49,7 +48,6 @@ CMD=(
   --trainer.log_every_n_steps 40
   --trainer.num_sanity_val_steps 0
   --trainer.val_check_interval "$VAL_CHECK_INTERVAL"
-  --trainer.limit_val_batches "$LIMIT_VAL_BATCHES"
   --trainer.default_root_dir /root/drumblender/lightning_logs
   --trainer.logger pytorch_lightning.loggers.WandbLogger
   --trainer.logger.init_args.project "$WANDB_PROJECT"

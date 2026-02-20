@@ -31,8 +31,7 @@ CMD=(
   --trainer.accumulate_grad_batches "$ACCUM_GRAD_BATCHES"
   --trainer.log_every_n_steps 40
   --trainer.num_sanity_val_steps 0
-  --trainer.val_check_interval 0.1
-  --trainer.limit_val_batches 8
+  --trainer.val_check_interval 1.0
   --trainer.default_root_dir /workspace/drumblender/lightning_logs
   --trainer.logger pytorch_lightning.loggers.WandbLogger
   --trainer.logger.init_args.project "$WANDB_PROJECT"

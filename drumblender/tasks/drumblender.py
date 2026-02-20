@@ -82,6 +82,10 @@ class DrumBlender(pl.LightningModule):
 
         # ### HIGHLIGHT: Buffer validation losses to compute a true per-train-epoch metric.
         self._validation_epoch_loss_buffer = []
+        # ### HIGHLIGHT: Rotate the validation step-loss logging batch index so
+        # we do not repeatedly log only the first validation sample.
+        self._val_step_log_counter = 0
+        self._val_step_log_batch_idx = 0
 
     # def forward(
     #     self,
@@ -317,6 +321,21 @@ class DrumBlender(pl.LightningModule):
     def on_train_epoch_start(self) -> None:
         self._validation_epoch_loss_buffer = []
 
+    # ### HIGHLIGHT: Choose a rotating validation batch index for step-loss logging.
+    def on_validation_start(self) -> None:
+        num_val_batches = getattr(self.trainer, "num_val_batches", 0)
+        if isinstance(num_val_batches, (list, tuple)):
+            n_batches = int(num_val_batches[0]) if len(num_val_batches) > 0 else 0
+        else:
+            n_batches = int(num_val_batches or 0)
+
+        if n_batches <= 0:
+            self._val_step_log_batch_idx = 0
+            return
+
+        self._val_step_log_batch_idx = int(self._val_step_log_counter % n_batches)
+        self._val_step_log_counter += 1
+
     def validation_step(self, batch, batch_idx: int):
         loss, _, _ = self._do_step(batch)
         # ### HIGHLIGHT: Keep an internal monitor metric for LR scheduler / early stopping.
@@ -333,12 +352,16 @@ class DrumBlender(pl.LightningModule):
         # ### HIGHLIGHT: Build a true per-epoch validation mean across all checks in the epoch.
         self._validation_epoch_loss_buffer.append(loss.detach())
 
-        # ### HIGHLIGHT: Align validation step-loss x-axis with training global_step in WandB.
-        if batch_idx == 0:
+        # ### HIGHLIGHT: Align validation step-loss x-axis with training global_step in WandB
+        # and rotate which validation batch is used for this step-level snapshot.
+        if batch_idx == self._val_step_log_batch_idx:
             if isinstance(self.logger, WandbLogger):
                 if self.trainer.is_global_zero:
                     self.logger.experiment.log(
-                        {"validation/loss_step": float(loss.detach().cpu())},
+                        {
+                            "validation/loss_step": float(loss.detach().cpu()),
+                            "validation/loss_step_batch_idx": int(batch_idx),
+                        },
                         step=int(self.global_step),
                     )
             else:
