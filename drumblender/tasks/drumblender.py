@@ -80,8 +80,6 @@ class DrumBlender(pl.LightningModule):
         if test_metrics is not None:
             self.metrics = test_metrics
 
-        # ### HIGHLIGHT: Buffer validation losses to compute a true per-train-epoch metric.
-        self._validation_epoch_loss_buffer = []
         # ### HIGHLIGHT: Rotate the validation step-loss logging batch index so
         # we do not repeatedly log only the first validation sample.
         self._val_step_log_counter = 0
@@ -317,10 +315,6 @@ class DrumBlender(pl.LightningModule):
         )
         return loss
 
-    # ### HIGHLIGHT: Reset validation-epoch buffer at each train epoch boundary.
-    def on_train_epoch_start(self) -> None:
-        self._validation_epoch_loss_buffer = []
-
     # ### HIGHLIGHT: Choose a rotating validation batch index for step-loss logging.
     def on_validation_start(self) -> None:
         num_val_batches = getattr(self.trainer, "num_val_batches", 0)
@@ -338,19 +332,17 @@ class DrumBlender(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx: int):
         loss, _, _ = self._do_step(batch)
-        # ### HIGHLIGHT: Keep an internal monitor metric for LR scheduler / early stopping.
+        # ### HIGHLIGHT: Use one canonical validation epoch metric for logging,
+        # LR scheduling, early stopping, and checkpoint selection.
         self.log(
-            "validation/loss_monitor",
+            "validation/loss_epoch",
             loss,
             on_step=False,
             on_epoch=True,
-            prog_bar=False,
-            logger=False,
+            prog_bar=True,
+            logger=True,
             sync_dist=True,
         )
-
-        # ### HIGHLIGHT: Build a true per-epoch validation mean across all checks in the epoch.
-        self._validation_epoch_loss_buffer.append(loss.detach())
 
         # ### HIGHLIGHT: Align validation step-loss x-axis with training global_step in WandB
         # and rotate which validation batch is used for this step-level snapshot.
@@ -375,22 +367,6 @@ class DrumBlender(pl.LightningModule):
                 )
 
         return loss
-
-    # ### HIGHLIGHT: Log one validation epoch-loss value per train epoch (aligned with train/loss_epoch cadence).
-    def on_train_epoch_end(self) -> None:
-        if len(self._validation_epoch_loss_buffer) == 0:
-            return
-
-        val_epoch_loss = torch.stack(self._validation_epoch_loss_buffer).mean()
-        self.log(
-            "validation/loss_epoch",
-            val_epoch_loss,
-            on_step=False,
-            on_epoch=True,
-            prog_bar=True,
-            logger=True,
-            sync_dist=True,
-        )
 
     def test_step(self, batch, batch_idx: int):
         loss, y_hat, target = self._do_step(batch)

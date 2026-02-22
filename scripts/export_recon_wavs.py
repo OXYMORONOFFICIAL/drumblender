@@ -407,8 +407,13 @@ def main() -> None:
 
     if len(losses) > 0:
         summary["metrics"]["test/loss"] = float(sum(losses) / len(losses))
+        loss_std = 0.0
+        if len(losses) > 1:
+            # ### HIGHLIGHT: Report population std over per-file test/loss values.
+            loss_std = float(statistics.pstdev(losses))
         summary["loss_stats"] = {
             "mean": float(statistics.fmean(losses)),
+            "std": loss_std,
             "min": float(min(losses)),
             "max": float(max(losses)),
             "median": float(statistics.median(losses)),
