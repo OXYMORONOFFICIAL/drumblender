@@ -32,3 +32,4 @@ init_args:
     class_path: auraloss.freq.MultiResolutionSTFTLoss
   si_mss:
     class_path: auraloss.freq.MultiResolutionSTFTLoss
+

@@ -21,15 +21,55 @@ VAL_CHECK_INTERVAL="${VAL_CHECK_INTERVAL:-1.0}"
 USE_BUCKETING="${USE_BUCKETING:-true}"
 LOSS_UPGRADE="${LOSS_UPGRADE:-off}"
 LOSS_CFG="${LOSS_CFG:-}"
+SI_NORM="${SI_NORM:-on}"
+DECAY_PRIOR="${DECAY_PRIOR:-off}"
+TRANSIENT_UPGRADE="${TRANSIENT_UPGRADE:-off}"
+TRANSIENT_SYNTH_CFG="${TRANSIENT_SYNTH_CFG:-}"
+TRANSIENT_RESIDUAL="${TRANSIENT_RESIDUAL:-on}"
+TRANSIENT_MASK="${TRANSIENT_MASK:-on}"
+TRANSIENT_FADE_START_MS="${TRANSIENT_FADE_START_MS:-15.0}"
+TRANSIENT_FADE_END_MS="${TRANSIENT_FADE_END_MS:-70.0}"
+TRANSIENT_TAIL_GAIN="${TRANSIENT_TAIL_GAIN:-0.0}"
+NOISE_ENCODER_UPGRADE="${NOISE_ENCODER_UPGRADE:-off}"
+NOISE_ENCODER_CFG="${NOISE_ENCODER_CFG:-}"
+TRANSIENT_ENCODER_UPGRADE="${TRANSIENT_ENCODER_UPGRADE:-off}"
+TRANSIENT_ENCODER_CFG="${TRANSIENT_ENCODER_CFG:-}"
 
 CFG_DIR="$(cd "$(dirname "$CFG")" && pwd)"
 if [[ -z "$LOSS_CFG" ]]; then
   if [[ "$LOSS_UPGRADE" == "on" ]]; then
-    LOSS_CFG="${CFG_DIR}/loss/safe_mss.yaml"
+    if [[ -f "${CFG_DIR}/upgrades/loss/safe_mss.yaml" ]]; then
+      LOSS_CFG="${CFG_DIR}/upgrades/loss/safe_mss.yaml"
+    else
+      LOSS_CFG="${CFG_DIR}/loss/safe_mss.yaml"
+    fi
   else
     LOSS_CFG="${CFG_DIR}/loss/mss.yaml"
   fi
 fi
+
+if [[ -z "$TRANSIENT_SYNTH_CFG" && "$TRANSIENT_UPGRADE" == "on" ]]; then
+  TRANSIENT_SYNTH_CFG="${CFG_DIR}/upgrades/transient/masked_residual_tcn.yaml"
+fi
+
+if [[ -z "$NOISE_ENCODER_CFG" && "$NOISE_ENCODER_UPGRADE" == "on" ]]; then
+  NOISE_ENCODER_CFG="${CFG_DIR}/upgrades/encoders/noise_dac_style.yaml"
+fi
+
+if [[ -z "$TRANSIENT_ENCODER_CFG" && "$TRANSIENT_ENCODER_UPGRADE" == "on" ]]; then
+  TRANSIENT_ENCODER_CFG="${CFG_DIR}/upgrades/encoders/transient_dac_style.yaml"
+fi
+
+to_bool() {
+  case "${1,,}" in
+    on|true|1|yes|y) echo "true" ;;
+    off|false|0|no|n) echo "false" ;;
+    *)
+      echo "Invalid boolean toggle value: '$1' (use on/off)" >&2
+      exit 1
+      ;;
+  esac
+}
 
 export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0,1}"
 export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-max_split_size_mb:128}"
@@ -85,6 +125,45 @@ CMD=(
 # ### HIGHLIGHT: Resume training from an explicit checkpoint when needed.
 if [[ -n "$RESUME_CKPT" ]]; then
   CMD+=(--ckpt_path "$RESUME_CKPT")
+fi
+
+if [[ -n "$TRANSIENT_SYNTH_CFG" ]]; then
+  CMD+=(--model.init_args.transient_synth "$TRANSIENT_SYNTH_CFG")
+fi
+
+if [[ -n "$NOISE_ENCODER_CFG" ]]; then
+  CMD+=(
+    --model.init_args.noise_autoencoder "$NOISE_ENCODER_CFG"
+    --model.init_args.noise_autoencoder_accepts_audio true
+  )
+fi
+
+if [[ -n "$TRANSIENT_ENCODER_CFG" ]]; then
+  CMD+=(
+    --model.init_args.transient_autoencoder "$TRANSIENT_ENCODER_CFG"
+    --model.init_args.transient_autoencoder_accepts_audio true
+  )
+fi
+
+if [[ "$LOSS_UPGRADE" == "on" ]]; then
+  SI_NORM_BOOL="$(to_bool "$SI_NORM")"
+  DECAY_PRIOR_BOOL="$(to_bool "$DECAY_PRIOR")"
+  CMD+=(
+    --model.init_args.loss_fn.init_args.si_enabled "$SI_NORM_BOOL"
+    --model.init_args.loss_fn.init_args.prior_enabled "$DECAY_PRIOR_BOOL"
+  )
+fi
+
+if [[ "$TRANSIENT_UPGRADE" == "on" ]]; then
+  TRANSIENT_RESIDUAL_BOOL="$(to_bool "$TRANSIENT_RESIDUAL")"
+  TRANSIENT_MASK_BOOL="$(to_bool "$TRANSIENT_MASK")"
+  CMD+=(
+    --model.init_args.transient_synth.init_args.residual_mode "$TRANSIENT_RESIDUAL_BOOL"
+    --model.init_args.transient_synth.init_args.mask_enabled "$TRANSIENT_MASK_BOOL"
+    --model.init_args.transient_synth.init_args.fade_start_ms "$TRANSIENT_FADE_START_MS"
+    --model.init_args.transient_synth.init_args.fade_end_ms "$TRANSIENT_FADE_END_MS"
+    --model.init_args.transient_synth.init_args.tail_gain "$TRANSIENT_TAIL_GAIN"
+  )
 fi
 
 "${CMD[@]}"

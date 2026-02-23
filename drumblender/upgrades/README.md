@@ -10,6 +10,7 @@ This folder is for optional research upgrades only.
 ## Folder layout
 - `losses/`: training loss upgrades
 - `encoders/`: encoder architecture upgrades
+- `transient/`: transient synth upgrades
 - Add new categories as needed (`synths/`, `metrics/`, etc.)
 
 ## Toggle strategy
@@ -22,4 +23,3 @@ This folder is for optional research upgrades only.
 2. Add a dedicated config (`cfg/...`) for ON mode.
 3. Keep baseline config untouched.
 4. Compare ON/OFF with identical train script except toggle.
-

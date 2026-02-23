@@ -6,16 +6,41 @@ upgrades:
     enabled: false
     variant: baseline  # baseline | safe_mss
     safe_mss:
+      si_enabled: true
+      prior_enabled: false
       si_rms_floor: 0.001
       gate_center_db: -36.0
       gate_width_db: 8.0
       amp_weight: 0.02
       env_weight: 0.02
       envelope_windows_ms: [20.0, 100.0]
+      prior_weight_inc: 0.002
+      prior_weight_curv: 0.0005
+      prior_weight_floor: 0.002
+      prior_decay_start_ms: 40.0
+      prior_num_bands: 16
+  transient:
+    enabled: false
+    variant: baseline  # baseline | masked_residual_tcn
+    masked_residual_tcn:
+      residual_mode: true
+      mask_enabled: true
+      sample_rate: 48000
+      fade_start_ms: 15.0
+      fade_end_ms: 70.0
+      tail_gain: 0.0
   encoders:
     transient:
       enabled: false
-      variant: baseline  # baseline | discodec_style
+      variant: baseline  # baseline | dac_style
+      dac_style:
+        hidden_channels: 16
+        strides: [2, 2, 4, 8]
+        use_weight_norm: true
     noise:
       enabled: false
-      variant: baseline  # baseline | apcodec_style
+      variant: baseline  # baseline | dac_style
+      dac_style:
+        hidden_channels: 16
+        strides: [2, 2, 4, 8]
+        use_weight_norm: true
