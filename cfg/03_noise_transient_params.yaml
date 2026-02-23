@@ -17,7 +17,7 @@ model:
 optimizer:
   class_path: torch.optim.Adam
   init_args:
-    lr: 0.0001
+    lr: 0.00005
 lr_scheduler:
   class_path: pytorch_lightning.cli.ReduceLROnPlateau
   init_args:
