@@ -12,13 +12,24 @@ CFG="${CFG:-/root/drumblender/cfg/05_all_parallel.yaml}"
 DATA_DIR="${DATA_DIR:-/root/datasets/modal_features/processed_modal_flat}"
 CKPT_DIR="${CKPT_DIR:-/root/drumblender/ckpt}"
 RESUME_CKPT="${RESUME_CKPT:-}"
-MAX_EPOCHS="${MAX_EPOCHS:-125}"
+MAX_EPOCHS="${MAX_EPOCHS:-100}"
 
 NUM_DEVICES="${NUM_DEVICES:-2}"
 BATCH_SIZE="${BATCH_SIZE:-2}"
 NUM_WORKERS="${NUM_WORKERS:-6}"
 VAL_CHECK_INTERVAL="${VAL_CHECK_INTERVAL:-1.0}"
 USE_BUCKETING="${USE_BUCKETING:-true}"
+LOSS_UPGRADE="${LOSS_UPGRADE:-off}"
+LOSS_CFG="${LOSS_CFG:-}"
+
+CFG_DIR="$(cd "$(dirname "$CFG")" && pwd)"
+if [[ -z "$LOSS_CFG" ]]; then
+  if [[ "$LOSS_UPGRADE" == "on" ]]; then
+    LOSS_CFG="${CFG_DIR}/loss/safe_mss.yaml"
+  else
+    LOSS_CFG="${CFG_DIR}/loss/mss.yaml"
+  fi
+fi
 
 export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0,1}"
 export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-max_split_size_mb:128}"
@@ -54,6 +65,7 @@ CMD=(
   --trainer.logger.init_args.name "$WANDB_NAME"
   --trainer.logger.init_args.save_dir "$WANDB_DIR"
   --trainer.logger.init_args.log_model false
+  --model.init_args.loss_fn "$LOSS_CFG"
   --data.class_path drumblender.data.AudioDataModule
   --data.data_dir "$DATA_DIR"
   --data.meta_file metadata.json

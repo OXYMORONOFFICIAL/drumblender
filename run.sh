@@ -12,8 +12,19 @@ CFG="${CFG:-/workspace/drumblender/cfg/05_all_parallel.yaml}"
 DATA_DIR="${DATA_DIR:-/private/datasets/modal_features/processed_modal_flat}"
 CKPT_DIR="${CKPT_DIR:-/workspace/drumblender/ckpt}"
 RESUME_CKPT="${RESUME_CKPT:-}"
-MAX_EPOCHS="${MAX_EPOCHS:-125}"
+MAX_EPOCHS="${MAX_EPOCHS:-100}"
 ACCUM_GRAD_BATCHES="${ACCUM_GRAD_BATCHES:-2}"
+LOSS_UPGRADE="${LOSS_UPGRADE:-off}"
+LOSS_CFG="${LOSS_CFG:-}"
+
+CFG_DIR="$(cd "$(dirname "$CFG")" && pwd)"
+if [[ -z "$LOSS_CFG" ]]; then
+  if [[ "$LOSS_UPGRADE" == "on" ]]; then
+    LOSS_CFG="${CFG_DIR}/loss/safe_mss.yaml"
+  else
+    LOSS_CFG="${CFG_DIR}/loss/mss.yaml"
+  fi
+fi
 
 # ### HIGHLIGHT: Always create output directories used by logger/checkpoint callbacks.
 mkdir -p "$WANDB_DIR" "$CKPT_DIR" /workspace/drumblender/lightning_logs
@@ -38,6 +49,7 @@ CMD=(
   --trainer.logger.init_args.name "$WANDB_NAME"
   --trainer.logger.init_args.save_dir "$WANDB_DIR"
   --trainer.logger.init_args.log_model false
+  --model.init_args.loss_fn "$LOSS_CFG"
   --data.class_path drumblender.data.AudioDataModule
   --data.data_dir "$DATA_DIR"
   --data.meta_file metadata.json

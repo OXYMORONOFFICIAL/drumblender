@@ -1,0 +1,13 @@
+class_path: drumblender.upgrades.losses.SafeScaleInvariantMSSLoss
+init_args:
+  sample_rate: 48000
+  si_rms_floor: 0.001
+  gate_center_db: -36.0
+  gate_width_db: 8.0
+  amp_weight: 0.02
+  env_weight: 0.02
+  envelope_windows_ms: [20.0, 100.0]
+  base_mss:
+    class_path: auraloss.freq.MultiResolutionSTFTLoss
+  si_mss:
+    class_path: auraloss.freq.MultiResolutionSTFTLoss

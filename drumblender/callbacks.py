@@ -106,8 +106,8 @@ class LogAudioCallback(Callback):
         should_capture = batch_idx < self.n_batches
 
         if should_capture:
-            self._wrap_forward("train")
-            self._save_batch(batch[0], "train", "target")
+            # ### HIGHLIGHT: Prefer explicit training_step outputs over forward monkey-patching
+            # for robust train/audio capture.
             self._capturing_train_batch = True
         else:
             self._capturing_train_batch = False
@@ -128,7 +128,16 @@ class LogAudioCallback(Callback):
             return
 
         if self._capturing_train_batch:
-            self._unwrap_forward()
+            # ### HIGHLIGHT: Use detached tensors returned by training_step when available.
+            if isinstance(outputs, dict):
+                target = outputs.get("train_audio_target")
+                recon = outputs.get("train_audio_reconstruction")
+                if target is not None and recon is not None:
+                    self._save_batch(target, "train", "target")
+                    self._save_batch(recon, "train", "reconstruction")
+            # Legacy fallback if train forward wrapping is re-enabled later.
+            if hasattr(self, "stored_forward"):
+                self._unwrap_forward()
             self._capturing_train_batch = False
 
     def on_train_epoch_end(
@@ -307,8 +316,17 @@ class LogAudioCallback(Callback):
             # ### HIGHLIGHT: Unify W&B section names: val/* -> validation/*.
             split_key = "validation" if split == "val" else split
             audio = Audio(audio_signal, caption=f"{split_key}/audio", sample_rate=self.save_audio_sr)
-            # ### HIGHLIGHT: Force audio x-axis to follow trainer/global_step.
-            logger.experiment.log({f"{split_key}/audio": audio}, step=int(trainer.global_step))
+            # ### HIGHLIGHT: Force audio x-axis near trainer/global_step while preserving
+            # W&B monotonic-step requirement when mixed with Lightning auto logs.
+            step = int(trainer.global_step)
+            run = logger.experiment
+            try:
+                run_step = int(getattr(run, "step", -1))
+                if step <= run_step:
+                    step = run_step + 1
+            except Exception:
+                pass
+            logger.experiment.log({f"{split_key}/audio": audio}, step=step)
 
 
 class CleanWandbCacheCallback(pl.Callback):

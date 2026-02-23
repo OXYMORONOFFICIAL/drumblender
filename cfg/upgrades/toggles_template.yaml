@@ -1,0 +1,21 @@
+# Optional upgrade toggle template.
+# Keep this file as a reference and create run-specific copies.
+
+upgrades:
+  loss:
+    enabled: false
+    variant: baseline  # baseline | safe_mss
+    safe_mss:
+      si_rms_floor: 0.001
+      gate_center_db: -36.0
+      gate_width_db: 8.0
+      amp_weight: 0.02
+      env_weight: 0.02
+      envelope_windows_ms: [20.0, 100.0]
+  encoders:
+    transient:
+      enabled: false
+      variant: baseline  # baseline | discodec_style
+    noise:
+      enabled: false
+      variant: baseline  # baseline | apcodec_style

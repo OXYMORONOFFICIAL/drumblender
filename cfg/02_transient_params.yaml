@@ -28,7 +28,7 @@ data: data/percussion.yaml
 trainer:
   devices: 1
   accelerator: gpu
-  max_epochs: -1
+  max_epochs: 100
   # logger:
   #   class_path: pytorch_lightning.loggers.WandbLogger
   #   init_args:

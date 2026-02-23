@@ -1,6 +1,7 @@
 """
 LightningModule for drum synthesis
 """
+import inspect
 from typing import Callable
 from typing import Literal
 from typing import Optional
@@ -84,6 +85,11 @@ class DrumBlender(pl.LightningModule):
         # we do not repeatedly log only the first validation sample.
         self._val_step_log_counter = 0
         self._val_step_log_batch_idx = 0
+
+        # Track whether the configured loss supports an optional `lengths` kwarg.
+        self._loss_accepts_lengths = self._callable_accepts_kwarg(
+            self.loss_fn, "lengths"
+        )
 
     # def forward(
     #     self,
@@ -266,6 +272,22 @@ class DrumBlender(pl.LightningModule):
         return y_hat
 
     @staticmethod
+    def _callable_accepts_kwarg(fn: Callable, kwarg_name: str) -> bool:
+        target = fn.forward if isinstance(fn, nn.Module) else fn
+        try:
+            sig = inspect.signature(target)
+        except (TypeError, ValueError):
+            return False
+
+        if kwarg_name in sig.parameters:
+            return True
+
+        return any(
+            p.kind == inspect.Parameter.VAR_KEYWORD
+            for p in sig.parameters.values()
+        )
+
+    @staticmethod
     def _make_time_mask(lengths: torch.Tensor, T: int, device):
         t = torch.arange(T, device=device)[None, :]
         mask = (t < lengths[:, None]).to(torch.float32)
@@ -288,12 +310,15 @@ class DrumBlender(pl.LightningModule):
             original = original * mask
             y_hat = y_hat * mask
 
-        loss = self.loss_fn(y_hat, original)
+        if self._loss_accepts_lengths:
+            loss = self.loss_fn(y_hat, original, lengths=lengths)
+        else:
+            loss = self.loss_fn(y_hat, original)
         # ### HIGHLIGHT: Return the masked target for length-safe metric computation.
         return loss, y_hat, original
 
     def training_step(self, batch, batch_idx: int):
-        loss, _, _ = self._do_step(batch)
+        loss, y_hat, target = self._do_step(batch)
         # ### HIGHLIGHT: Log a dedicated per-step training loss for denser WandB curves.
         self.log(
             "train/loss_step",
@@ -313,7 +338,12 @@ class DrumBlender(pl.LightningModule):
             logger=True,
             sync_dist=True,
         )
-        return loss
+        # ### HIGHLIGHT: Return detached audio snapshots for callback-side train audio logging.
+        out = {"loss": loss}
+        if batch_idx == 0:
+            out["train_audio_target"] = target.detach().cpu()
+            out["train_audio_reconstruction"] = y_hat.detach().cpu()
+        return out
 
     # ### HIGHLIGHT: Choose a rotating validation batch index for step-loss logging.
     def on_validation_start(self) -> None:
@@ -349,12 +379,22 @@ class DrumBlender(pl.LightningModule):
         if batch_idx == self._val_step_log_batch_idx:
             if isinstance(self.logger, WandbLogger):
                 if self.trainer.is_global_zero:
+                    # ### HIGHLIGHT: Keep W&B step monotonic when mixing manual and Lightning logs.
+                    # W&B may already have advanced its internal step by 1 from other logs.
+                    step = int(self.global_step)
+                    run = self.logger.experiment
+                    try:
+                        run_step = int(getattr(run, "step", -1))
+                        if step <= run_step:
+                            step = run_step + 1
+                    except Exception:
+                        pass
                     self.logger.experiment.log(
                         {
                             "validation/loss_step": float(loss.detach().cpu()),
                             "validation/loss_step_batch_idx": int(batch_idx),
                         },
-                        step=int(self.global_step),
+                        step=step,
                     )
             else:
                 self.log(
