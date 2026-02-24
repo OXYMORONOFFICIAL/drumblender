@@ -24,6 +24,10 @@ class SafeScaleInvariantMSSLoss(nn.Module):
         + w_inc  * L_inc   (only over-predicted positive band-energy jumps)
         + w_curv * L_curv  (only over-predicted curvature spikes)
         + w_floor* L_floor (prevent over-short decay tails)
+
+    Length-aware safety:
+        For very short samples (absolute duration), reduce prior strength to avoid
+        over-regularizing transient-only clips.
     """
 
     def __init__(
@@ -56,6 +60,10 @@ class SafeScaleInvariantMSSLoss(nn.Module):
         prior_floor_margin_db: float = 2.0,
         prior_floor_min_db: float = -72.0,
         prior_huber_delta: float = 1e-3,
+        prior_length_aware: bool = True,
+        prior_short_ms_start: float = 80.0,
+        prior_short_ms_end: float = 260.0,
+        prior_min_decay_frames: int = 8,
     ):
         super().__init__()
         self.sample_rate = int(sample_rate)
@@ -94,6 +102,10 @@ class SafeScaleInvariantMSSLoss(nn.Module):
         self.prior_floor_margin_db = float(prior_floor_margin_db)
         self.prior_floor_min_db = float(prior_floor_min_db)
         self.prior_huber_delta = max(float(prior_huber_delta), 1e-12)
+        self.prior_length_aware = bool(prior_length_aware)
+        self.prior_short_ms_start = float(prior_short_ms_start)
+        self.prior_short_ms_end = float(prior_short_ms_end)
+        self.prior_min_decay_frames = max(0, int(prior_min_decay_frames))
 
         win = torch.hann_window(self.prior_win_length)
         self.register_buffer("_prior_window", win, persistent=False)
@@ -211,7 +223,39 @@ class SafeScaleInvariantMSSLoss(nn.Module):
         t = torch.arange(total_true.size(1), device=total_true.device).unsqueeze(0)
         return t >= decay_start.unsqueeze(1)
 
-    def _physical_prior(self, pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+    def _prior_length_gate(
+        self,
+        pred: torch.Tensor,
+        lengths: Optional[torch.Tensor],
+    ) -> torch.Tensor:
+        """Return per-sample prior gate in [0, 1] based on absolute duration (ms)."""
+        bsz = pred.size(0)
+        if not self.prior_length_aware:
+            return pred.new_ones((bsz,))
+
+        if lengths is None:
+            return pred.new_ones((bsz,))
+
+        if not torch.is_tensor(lengths):
+            lengths = torch.tensor(lengths, device=pred.device)
+        lengths = lengths.to(device=pred.device, dtype=pred.dtype).clamp_min(1.0)
+
+        length_ms = lengths * (1000.0 / float(self.sample_rate))
+
+        lo = self.prior_short_ms_start
+        hi = self.prior_short_ms_end
+        if hi <= lo:
+            return pred.new_ones((bsz,))
+
+        gate = (length_ms - lo) / (hi - lo)
+        return gate.clamp(0.0, 1.0)
+
+    def _physical_prior(
+        self,
+        pred: torch.Tensor,
+        target: torch.Tensor,
+        lengths: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
         if not self.prior_enabled:
             return pred.new_zeros(())
 
@@ -224,10 +268,15 @@ class SafeScaleInvariantMSSLoss(nn.Module):
 
         band_pred = self._prior_band_energy(pred)
         band_true = self._prior_band_energy(target)
+        length_gate = self._prior_length_gate(pred, lengths).view(-1, 1, 1)
 
         total_pred = band_pred.sum(dim=1)
         total_true = band_true.sum(dim=1)
         decay_mask = self._decay_mask_from_target(total_true)
+        decay_valid = (decay_mask.sum(dim=1) >= self.prior_min_decay_frames).to(
+            dtype=pred.dtype
+        )
+        decay_valid = decay_valid.view(-1, 1, 1)
 
         prior_loss = pred.new_zeros(())
 
@@ -237,7 +286,8 @@ class SafeScaleInvariantMSSLoss(nn.Module):
             d_true = band_true[:, :, 1:] - band_true[:, :, :-1]
             eps_bt = self.prior_eps_base + self.prior_eps_rel * band_true[:, :, 1:]
             excess = torch.relu(d_pred - d_true - eps_bt)
-            mask = decay_mask[:, 1:].unsqueeze(1)
+            mask = decay_mask[:, 1:].unsqueeze(1).to(excess.dtype)
+            mask = mask * length_gate * decay_valid
             inc_loss = self._masked_huber_mean(excess, mask)
             prior_loss = prior_loss + self.prior_weight_inc * inc_loss
 
@@ -247,7 +297,8 @@ class SafeScaleInvariantMSSLoss(nn.Module):
             dd_true = band_true[:, :, 2:] - 2.0 * band_true[:, :, 1:-1] + band_true[:, :, :-2]
             kappa = self.prior_curv_eps_base + self.prior_curv_eps_rel * dd_true.abs()
             excess = torch.relu(dd_pred.abs() - dd_true.abs() - kappa)
-            mask = decay_mask[:, 2:].unsqueeze(1)
+            mask = decay_mask[:, 2:].unsqueeze(1).to(excess.dtype)
+            mask = mask * length_gate * decay_valid
             curv_loss = self._masked_huber_mean(excess, mask)
             prior_loss = prior_loss + self.prior_weight_curv * curv_loss
 
@@ -259,7 +310,9 @@ class SafeScaleInvariantMSSLoss(nn.Module):
             floor_target = db_true - self.prior_floor_margin_db
             excess = torch.relu(floor_target - db_pred)
 
-            valid_mask = decay_mask & (db_true > self.prior_floor_min_db)
+            floor_gate = 0.5 + 0.5 * length_gate.squeeze(-1).squeeze(-1)
+            valid_mask = (decay_mask & (db_true > self.prior_floor_min_db)).to(excess.dtype)
+            valid_mask = valid_mask * floor_gate.unsqueeze(1)
             floor_loss = self._masked_huber_mean(excess, valid_mask)
             prior_loss = prior_loss + self.prior_weight_floor * floor_loss
 
@@ -304,6 +357,6 @@ class SafeScaleInvariantMSSLoss(nn.Module):
         )
         env_loss = self._envelope_anchor(pred_masked, target_masked)
 
-        prior_loss = self._physical_prior(pred_masked, target_masked)
+        prior_loss = self._physical_prior(pred_masked, target_masked, lengths=lengths)
 
         return mss_loss + self.amp_weight * amp_loss + self.env_weight * env_loss + prior_loss

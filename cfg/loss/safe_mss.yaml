@@ -13,22 +13,27 @@ init_args:
   envelope_windows_ms: [20.0, 100.0]
   prior_enabled: false
   # Weak one-sided physical prior parameters (used only when prior_enabled=true)
-  prior_weight_inc: 0.002
-  prior_weight_curv: 0.0005
-  prior_weight_floor: 0.002
-  prior_decay_start_ms: 40.0
+  prior_weight_inc: 0.0002
+  prior_weight_curv: 0.00005
+  prior_weight_floor: 0.0
+  prior_decay_start_ms: 20.0
   prior_n_fft: 1024
   prior_hop_length: 256
   prior_win_length: 1024
   prior_num_bands: 16
   prior_eps_base: 1.0e-6
-  prior_eps_rel: 0.05
+  prior_eps_rel: 0.1
   prior_curv_eps_base: 1.0e-6
-  prior_curv_eps_rel: 0.05
+  prior_curv_eps_rel: 0.1
   prior_floor_margin_db: 2.0
   prior_floor_min_db: -72.0
-  prior_huber_delta: 0.001
+  prior_huber_delta: 0.003
   base_mss:
     class_path: auraloss.freq.MultiResolutionSTFTLoss
   si_mss:
     class_path: auraloss.freq.MultiResolutionSTFTLoss
+
+  prior_length_aware: true
+  prior_short_ms_start: 80.0
+  prior_short_ms_end: 260.0
+  prior_min_decay_frames: 8
