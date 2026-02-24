@@ -1,6 +1,10 @@
 import subprocess
+import json
+import os
 from functools import partial
 from functools import reduce
+from datetime import datetime
+from datetime import timezone
 from pathlib import Path
 from types import MethodType
 from typing import Any
@@ -354,10 +358,40 @@ class SaveConfigCallbackWanb(SaveConfigCallback):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
+    @staticmethod
+    def _write_runtime_context(trainer: pl.Trainer) -> None:
+        if not trainer.is_global_zero:
+            return
+
+        raw = os.getenv("DRUMBLENDER_RUN_CONTEXT_JSON", "")
+        if not raw:
+            return
+
+        try:
+            payload = json.loads(raw)
+        except Exception:
+            payload = {"raw": raw}
+
+        payload["saved_at_utc"] = datetime.now(timezone.utc).isoformat()
+        payload["pytorch_lightning_log_dir"] = str(getattr(trainer, "log_dir", ""))
+
+        log_dir = getattr(trainer, "log_dir", None)
+        if not log_dir:
+            return
+
+        path = Path(log_dir) / "run-context.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2, ensure_ascii=False)
+
     def setup(
         self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str
     ) -> None:
         super().setup(trainer, pl_module, stage)
+
+        # ### HIGHLIGHT: Always dump launch toggles/context into the run log directory.
+        self._write_runtime_context(trainer)
+
         # ### HIGHLIGHT: Avoid touching wandb.experiment during DDP setup.
         # On some environments this can stall before the first training step.
         world_size = getattr(trainer, "world_size", 1)
@@ -376,3 +410,10 @@ class SaveConfigCallbackWanb(SaveConfigCallback):
                 experiment_dir.mkdir(parents=True)
 
             config.rename(experiment_dir.joinpath("model-config.yaml"))
+
+            # ### HIGHLIGHT: Mirror runtime context into the wandb run folder when available.
+            run_ctx = Path(trainer.log_dir).joinpath("run-context.json")
+            if run_ctx.exists():
+                run_ctx_dst = experiment_dir.joinpath("run-context.json")
+                if not run_ctx_dst.exists():
+                    run_ctx_dst.write_text(run_ctx.read_text(encoding="utf-8"), encoding="utf-8")

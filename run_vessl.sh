@@ -13,6 +13,7 @@ DATA_DIR="${DATA_DIR:-/root/datasets/modal_features/processed_modal_flat}"
 CKPT_DIR="${CKPT_DIR:-/root/drumblender/ckpt}"
 RESUME_CKPT="${RESUME_CKPT:-}"
 MAX_EPOCHS="${MAX_EPOCHS:-100}"
+DRY_RUN="${DRY_RUN:-off}"
 
 NUM_DEVICES="${NUM_DEVICES:-2}"
 BATCH_SIZE="${BATCH_SIZE:-2}"
@@ -165,5 +166,49 @@ if [[ "$TRANSIENT_UPGRADE" == "on" ]]; then
     --model.init_args.transient_synth.init_args.tail_gain "$TRANSIENT_TAIL_GAIN"
   )
 fi
+
+LAUNCH_CMD="${CMD[*]}"
+RUN_CONTEXT_JSON="$(cat <<JSON
+{
+  "script": "run_vessl.sh",
+  "cfg": "$CFG",
+  "data_dir": "$DATA_DIR",
+  "seed": "$RUN_SEED",
+  "max_epochs": "$MAX_EPOCHS",
+  "devices": "$NUM_DEVICES",
+  "batch_size": "$BATCH_SIZE",
+  "num_workers": "$NUM_WORKERS",
+  "val_check_interval": "$VAL_CHECK_INTERVAL",
+  "use_bucketing": "$USE_BUCKETING",
+  "loss_upgrade": "$LOSS_UPGRADE",
+  "loss_cfg": "$LOSS_CFG",
+  "si_norm": "$SI_NORM",
+  "decay_prior": "$DECAY_PRIOR",
+  "transient_upgrade": "$TRANSIENT_UPGRADE",
+  "transient_synth_cfg": "$TRANSIENT_SYNTH_CFG",
+  "transient_residual": "$TRANSIENT_RESIDUAL",
+  "transient_mask": "$TRANSIENT_MASK",
+  "transient_fade_start_ms": "$TRANSIENT_FADE_START_MS",
+  "transient_fade_end_ms": "$TRANSIENT_FADE_END_MS",
+  "transient_tail_gain": "$TRANSIENT_TAIL_GAIN",
+  "noise_encoder_upgrade": "$NOISE_ENCODER_UPGRADE",
+  "noise_encoder_cfg": "$NOISE_ENCODER_CFG",
+  "transient_encoder_upgrade": "$TRANSIENT_ENCODER_UPGRADE",
+  "transient_encoder_cfg": "$TRANSIENT_ENCODER_CFG",
+  "resume_ckpt": "$RESUME_CKPT",
+  "launch_cmd": "$LAUNCH_CMD"
+}
+JSON
+)"
+export DRUMBLENDER_RUN_CONTEXT_JSON="$RUN_CONTEXT_JSON"
+
+case "${DRY_RUN,,}" in
+  on|true|1|yes|y)
+    echo "[DRY_RUN] Final launch command:"
+    printf '%q ' "${CMD[@]}"
+    echo
+    exit 0
+    ;;
+esac
 
 "${CMD[@]}"
