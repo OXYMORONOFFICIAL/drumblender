@@ -32,14 +32,14 @@ upgrades:
   encoders:
     transient:
       enabled: false
-      variant: baseline  # baseline | dac_style
+      variant: baseline  # baseline | dac_style | hybrid_style | apcodec_style | discodec_style
       dac_style:
         hidden_channels: 16
         strides: [2, 2, 4, 8]
         use_weight_norm: true
     noise:
       enabled: false
-      variant: baseline  # baseline | dac_style
+      variant: baseline  # baseline | dac_style | hybrid_style | apcodec_style | discodec_style
       dac_style:
         hidden_channels: 16
         strides: [2, 2, 4, 8]

@@ -31,10 +31,13 @@ TRANSIENT_MASK="${TRANSIENT_MASK:-on}"
 TRANSIENT_FADE_START_MS="${TRANSIENT_FADE_START_MS:-15.0}"
 TRANSIENT_FADE_END_MS="${TRANSIENT_FADE_END_MS:-70.0}"
 TRANSIENT_TAIL_GAIN="${TRANSIENT_TAIL_GAIN:-0.0}"
-NOISE_ENCODER_UPGRADE="${NOISE_ENCODER_UPGRADE:-off}"
+NOISE_ENCODER_BACKBONE="${NOISE_ENCODER_BACKBONE:-soundstream}"
 NOISE_ENCODER_CFG="${NOISE_ENCODER_CFG:-}"
-TRANSIENT_ENCODER_UPGRADE="${TRANSIENT_ENCODER_UPGRADE:-off}"
+TRANSIENT_ENCODER_BACKBONE="${TRANSIENT_ENCODER_BACKBONE:-soundstream}"
 TRANSIENT_ENCODER_CFG="${TRANSIENT_ENCODER_CFG:-}"
+# Legacy compatibility toggles (kept for older commands):
+NOISE_ENCODER_UPGRADE="${NOISE_ENCODER_UPGRADE:-off}"
+TRANSIENT_ENCODER_UPGRADE="${TRANSIENT_ENCODER_UPGRADE:-off}"
 
 CFG_DIR="$(cd "$(dirname "$CFG")" && pwd)"
 if [[ -z "$LOSS_CFG" ]]; then
@@ -53,12 +56,56 @@ if [[ -z "$TRANSIENT_SYNTH_CFG" && "$TRANSIENT_UPGRADE" == "on" ]]; then
   TRANSIENT_SYNTH_CFG="${CFG_DIR}/upgrades/transient/masked_residual_tcn.yaml"
 fi
 
-if [[ -z "$NOISE_ENCODER_CFG" && "$NOISE_ENCODER_UPGRADE" == "on" ]]; then
-  NOISE_ENCODER_CFG="${CFG_DIR}/upgrades/encoders/noise_dac_style.yaml"
+if [[ "$NOISE_ENCODER_UPGRADE" == "on" && "$NOISE_ENCODER_BACKBONE" == "soundstream" ]]; then
+  NOISE_ENCODER_BACKBONE="dac"
+fi
+if [[ "$TRANSIENT_ENCODER_UPGRADE" == "on" && "$TRANSIENT_ENCODER_BACKBONE" == "soundstream" ]]; then
+  TRANSIENT_ENCODER_BACKBONE="dac"
 fi
 
-if [[ -z "$TRANSIENT_ENCODER_CFG" && "$TRANSIENT_ENCODER_UPGRADE" == "on" ]]; then
-  TRANSIENT_ENCODER_CFG="${CFG_DIR}/upgrades/encoders/transient_dac_style.yaml"
+resolve_encoder_cfg() {
+  local kind="$1"      # noise | transient
+  local backbone="$2"  # soundstream | dac | hybrid | apcodec | discodec
+  local out=""
+  case "$backbone" in
+    soundstream)
+      out=""
+      ;;
+    dac)
+      out="${CFG_DIR}/upgrades/encoders/${kind}_dac_style.yaml"
+      ;;
+    hybrid)
+      out="${CFG_DIR}/upgrades/encoders/${kind}_hybrid_style.yaml"
+      ;;
+    apcodec)
+      out="${CFG_DIR}/upgrades/encoders/${kind}_apcodec_style.yaml"
+      ;;
+    discodec)
+      out="${CFG_DIR}/upgrades/encoders/${kind}_discodec_style.yaml"
+      ;;
+    *)
+      echo "Invalid ${kind} encoder backbone: '${backbone}'" >&2
+      echo "Valid values: soundstream | dac | hybrid | apcodec | discodec" >&2
+      exit 1
+      ;;
+  esac
+  printf '%s' "$out"
+}
+
+if [[ -z "$NOISE_ENCODER_CFG" ]]; then
+  NOISE_ENCODER_CFG="$(resolve_encoder_cfg noise "$NOISE_ENCODER_BACKBONE")"
+fi
+if [[ -z "$TRANSIENT_ENCODER_CFG" ]]; then
+  TRANSIENT_ENCODER_CFG="$(resolve_encoder_cfg transient "$TRANSIENT_ENCODER_BACKBONE")"
+fi
+
+if [[ -n "$NOISE_ENCODER_CFG" && ! -f "$NOISE_ENCODER_CFG" ]]; then
+  echo "Noise encoder config not found for backbone '$NOISE_ENCODER_BACKBONE': $NOISE_ENCODER_CFG" >&2
+  exit 1
+fi
+if [[ -n "$TRANSIENT_ENCODER_CFG" && ! -f "$TRANSIENT_ENCODER_CFG" ]]; then
+  echo "Transient encoder config not found for backbone '$TRANSIENT_ENCODER_BACKBONE': $TRANSIENT_ENCODER_CFG" >&2
+  exit 1
 fi
 
 to_bool() {
@@ -191,10 +238,12 @@ RUN_CONTEXT_JSON="$(cat <<JSON
   "transient_fade_start_ms": "$TRANSIENT_FADE_START_MS",
   "transient_fade_end_ms": "$TRANSIENT_FADE_END_MS",
   "transient_tail_gain": "$TRANSIENT_TAIL_GAIN",
-  "noise_encoder_upgrade": "$NOISE_ENCODER_UPGRADE",
+  "noise_encoder_backbone": "$NOISE_ENCODER_BACKBONE",
   "noise_encoder_cfg": "$NOISE_ENCODER_CFG",
-  "transient_encoder_upgrade": "$TRANSIENT_ENCODER_UPGRADE",
+  "transient_encoder_backbone": "$TRANSIENT_ENCODER_BACKBONE",
   "transient_encoder_cfg": "$TRANSIENT_ENCODER_CFG",
+  "noise_encoder_upgrade_legacy": "$NOISE_ENCODER_UPGRADE",
+  "transient_encoder_upgrade_legacy": "$TRANSIENT_ENCODER_UPGRADE",
   "resume_ckpt": "$RESUME_CKPT",
   "launch_cmd": "$LAUNCH_CMD"
 }

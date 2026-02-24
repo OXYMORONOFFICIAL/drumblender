@@ -9,11 +9,14 @@ WANDB_DIR="${WANDB_DIR:-/workspace/drumblender/logs/wandb}"
 RUN_SEED="${RUN_SEED:-20260218}"
 
 CFG="${CFG:-/workspace/drumblender/cfg/05_all_parallel.yaml}"
-DATA_DIR="${DATA_DIR:-/private/datasets/modal_features/processed_modal_flat}"
+DATA_DIR="${DATA_DIR:-/workspace/datasets/modal_features/processed_modal_flat}"
 CKPT_DIR="${CKPT_DIR:-/workspace/drumblender/ckpt}"
 RESUME_CKPT="${RESUME_CKPT:-}"
 MAX_EPOCHS="${MAX_EPOCHS:-100}"
-ACCUM_GRAD_BATCHES="${ACCUM_GRAD_BATCHES:-2}"
+ACCUM_GRAD_BATCHES="${ACCUM_GRAD_BATCHES:-1}"
+BATCH_SIZE="${BATCH_SIZE:-8}"
+NUM_WORKERS="${NUM_WORKERS:-12}"
+TRAINER_PRECISION="${TRAINER_PRECISION:-32}"
 DRY_RUN="${DRY_RUN:-off}"
 LOSS_UPGRADE="${LOSS_UPGRADE:-off}"
 LOSS_CFG="${LOSS_CFG:-}"
@@ -114,18 +117,17 @@ to_bool() {
   esac
 }
 
-# ### HIGHLIGHT: Always create output directories used by logger/checkpoint callbacks.
 mkdir -p "$WANDB_DIR" "$CKPT_DIR" /workspace/drumblender/lightning_logs
 
-# (Optional) CUDA allocator fragmentation mitigation.
-export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-max_split_size_mb:128}"
+export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-max_split_size_mb:256}"
+export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
 
 CMD=(
   drumblender fit -c "$CFG"
   --seed_everything "$RUN_SEED"
   --trainer.accelerator gpu
   --trainer.devices 1
-  --trainer.precision 32
+  --trainer.precision "$TRAINER_PRECISION"
   --trainer.max_epochs "$MAX_EPOCHS"
   --trainer.accumulate_grad_batches "$ACCUM_GRAD_BATCHES"
   --trainer.log_every_n_steps 40
@@ -146,15 +148,14 @@ CMD=(
   --data.seed "$RUN_SEED"
   --data.sample_rate 48000
   --data.num_samples null
-  --data.batch_size 1
-  --data.num_workers 6
+  --data.batch_size "$BATCH_SIZE"
+  --data.num_workers "$NUM_WORKERS"
   --data.skip_prepare_data true
   --data.use_bucketing true
   --data.bucket_boundaries "[48000, 96000, 192000, 384000]"
   --data.drop_last true
 )
 
-# ### HIGHLIGHT: Resume training from an explicit checkpoint when needed.
 if [[ -n "$RESUME_CKPT" ]]; then
   CMD+=(--ckpt_path "$RESUME_CKPT")
 fi
@@ -201,11 +202,14 @@ fi
 LAUNCH_CMD="${CMD[*]}"
 RUN_CONTEXT_JSON="$(cat <<JSON
 {
-  "script": "run.sh",
+  "script": "run_vast.sh",
   "cfg": "$CFG",
   "data_dir": "$DATA_DIR",
   "seed": "$RUN_SEED",
   "max_epochs": "$MAX_EPOCHS",
+  "batch_size": "$BATCH_SIZE",
+  "num_workers": "$NUM_WORKERS",
+  "trainer_precision": "$TRAINER_PRECISION",
   "accumulate_grad_batches": "$ACCUM_GRAD_BATCHES",
   "loss_upgrade": "$LOSS_UPGRADE",
   "loss_cfg": "$LOSS_CFG",

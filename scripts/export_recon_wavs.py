@@ -37,6 +37,7 @@ import argparse
 import csv
 import importlib
 import json
+import os
 import shutil
 import statistics
 import subprocess
@@ -119,6 +120,111 @@ def _copy_if_exists(src: Path, dst: Path) -> None:
         shutil.copy2(src, dst)
 
 
+def _resolve_encoder_cfg(
+    cfg_dir: Path,
+    kind: str,
+    backbone: str,
+    explicit_cfg: Optional[str],
+) -> Optional[str]:
+    """
+    Resolve encoder config file path from either an explicit path or a backbone name.
+    """
+    if explicit_cfg is not None and explicit_cfg.strip() != "":
+        p = Path(explicit_cfg)
+        if not p.is_absolute():
+            p = (cfg_dir / p).resolve()
+        if not p.is_file():
+            raise FileNotFoundError(f"{kind} encoder config not found: {p}")
+        return str(p)
+
+    if backbone == "soundstream":
+        return None
+
+    rel = Path("upgrades") / "encoders" / f"{kind}_{backbone}_style.yaml"
+    p = (cfg_dir / rel).resolve()
+    if not p.is_file():
+        raise FileNotFoundError(
+            f"{kind} encoder backbone '{backbone}' requested but config is missing: {p}"
+        )
+    return str(p)
+
+
+def _resolve_optional_cfg(cfg_dir: Path, cfg_value: Optional[str]) -> Optional[str]:
+    if cfg_value is None or cfg_value.strip() == "":
+        return None
+    p = Path(cfg_value)
+    if not p.is_absolute():
+        p = (cfg_dir / p).resolve()
+    if not p.is_file():
+        raise FileNotFoundError(f"Config path not found: {p}")
+    return str(p)
+
+
+def _build_export_model_config(args: argparse.Namespace) -> tuple[Path, bool]:
+    """
+    Optionally write a temporary config that mirrors training-time encoder/synth overrides.
+
+    Returns:
+      (config_path_to_use, is_temp)
+    """
+    base_cfg_path = Path(args.config).resolve()
+    cfg_dir = base_cfg_path.parent
+
+    # If no overrides are requested, reuse the original config as-is.
+    if (
+        args.loss_cfg is None
+        and args.transient_synth_cfg is None
+        and args.noise_encoder_cfg is None
+        and args.transient_encoder_cfg is None
+        and args.noise_encoder_backbone == "soundstream"
+        and args.transient_encoder_backbone == "soundstream"
+    ):
+        return base_cfg_path, False
+
+    with base_cfg_path.open("r", encoding="utf-8") as f:
+        cfg_obj = yaml.safe_load(f)
+
+    model = cfg_obj.setdefault("model", {})
+    init_args = model.setdefault("init_args", {})
+
+    loss_cfg = _resolve_optional_cfg(cfg_dir, args.loss_cfg)
+    if loss_cfg is not None:
+        init_args["loss_fn"] = loss_cfg
+
+    transient_synth_cfg = _resolve_optional_cfg(cfg_dir, args.transient_synth_cfg)
+    if transient_synth_cfg is not None:
+        init_args["transient_synth"] = transient_synth_cfg
+
+    noise_encoder_cfg = _resolve_encoder_cfg(
+        cfg_dir=cfg_dir,
+        kind="noise",
+        backbone=args.noise_encoder_backbone,
+        explicit_cfg=args.noise_encoder_cfg,
+    )
+    if noise_encoder_cfg is not None:
+        init_args["noise_autoencoder"] = noise_encoder_cfg
+        init_args["noise_autoencoder_accepts_audio"] = True
+
+    transient_encoder_cfg = _resolve_encoder_cfg(
+        cfg_dir=cfg_dir,
+        kind="transient",
+        backbone=args.transient_encoder_backbone,
+        explicit_cfg=args.transient_encoder_cfg,
+    )
+    if transient_encoder_cfg is not None:
+        init_args["transient_autoencoder"] = transient_encoder_cfg
+        init_args["transient_autoencoder_accepts_audio"] = True
+
+    tmp_name = (
+        f".export_resolved_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
+        f"_{os.getpid()}.yaml"
+    )
+    tmp_path = cfg_dir / tmp_name
+    with tmp_path.open("w", encoding="utf-8") as f:
+        yaml.safe_dump(cfg_obj, f, sort_keys=False)
+    return tmp_path, True
+
+
 def _copy_training_context(ckpt_path: Path, package_root: Path) -> None:
     """
     Copy nearby training context files from the run directory.
@@ -194,6 +300,44 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str, required=True, help="Model config YAML")
     parser.add_argument("--ckpt", type=str, required=True, help="Checkpoint path")
+    parser.add_argument(
+        "--loss-cfg",
+        type=str,
+        default=None,
+        help="Optional loss config override (same semantics as run scripts).",
+    )
+    parser.add_argument(
+        "--transient-synth-cfg",
+        type=str,
+        default=None,
+        help="Optional transient synth config override (e.g., masked residual TCN).",
+    )
+    parser.add_argument(
+        "--noise-encoder-backbone",
+        type=str,
+        default="soundstream",
+        choices=["soundstream", "dac", "hybrid", "apcodec", "discodec"],
+        help="Noise encoder backbone override.",
+    )
+    parser.add_argument(
+        "--transient-encoder-backbone",
+        type=str,
+        default="soundstream",
+        choices=["soundstream", "dac", "hybrid", "apcodec", "discodec"],
+        help="Transient encoder backbone override.",
+    )
+    parser.add_argument(
+        "--noise-encoder-cfg",
+        type=str,
+        default=None,
+        help="Explicit noise encoder config path override.",
+    )
+    parser.add_argument(
+        "--transient-encoder-cfg",
+        type=str,
+        default=None,
+        help="Explicit transient encoder config path override.",
+    )
     parser.add_argument("--data-dir", type=str, required=True, help="Dataset root")
     parser.add_argument("--meta-file", type=str, default="metadata.json")
     parser.add_argument("--split", type=str, default="test", choices=["train", "val", "test"])
@@ -269,12 +413,16 @@ def main() -> None:
         target_root.mkdir(parents=True, exist_ok=True)
 
     device = "cuda" if args.device == "cuda" and torch.cuda.is_available() else "cpu"
-    model, _ = load_model(args.config, args.ckpt, include_data=False)
+
+    model_cfg_to_load, is_temp_cfg = _build_export_model_config(args)
+    model, _ = load_model(str(model_cfg_to_load), args.ckpt, include_data=False)
     model = model.to(device)
     model.eval()
 
     # ### HIGHLIGHT: Keep a copy of configs used for this export.
     _copy_if_exists(Path(args.config), config_root / Path(args.config).name)
+    if is_temp_cfg:
+        _copy_if_exists(model_cfg_to_load, config_root / "resolved_export_config.yaml")
     _copy_if_exists(Path(args.metrics_config), config_root / Path(args.metrics_config).name)
 
     ckpt_path = Path(args.ckpt)
@@ -447,6 +595,12 @@ def main() -> None:
         with tarfile.open(tar_path, "w:gz") as tar:
             tar.add(output_dir, arcname=output_dir.name)
         print(f"[OK] archive: {tar_path}")
+
+    if is_temp_cfg:
+        try:
+            Path(model_cfg_to_load).unlink(missing_ok=True)
+        except Exception:
+            pass
 
     print(f"[OK] exported {limit} items to {output_dir}")
     print(f"[OK] manifest: {manifest_path}")

@@ -23,3 +23,11 @@ This folder is for optional research upgrades only.
 2. Add a dedicated config (`cfg/...`) for ON mode.
 3. Keep baseline config untouched.
 4. Compare ON/OFF with identical train script except toggle.
+
+## Encoder backbone wiring
+- Runtime scripts support backbone selection per encoder path:
+  - `NOISE_ENCODER_BACKBONE=soundstream|dac|hybrid|apcodec|discodec`
+  - `TRANSIENT_ENCODER_BACKBONE=soundstream|dac|hybrid|apcodec|discodec`
+- `soundstream` keeps baseline configs (no override).
+- Other values resolve to `cfg/upgrades/encoders/*_<backbone>_style.yaml`.
+- If the resolved config file does not exist, scripts fail fast with a clear error.
