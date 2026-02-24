@@ -7,4 +7,4 @@ init_args:
   causal: false
   transpose_output: true
   use_weight_norm: true
-  fusion_mode: concat_proj
+  hybrid_mode: alternate
