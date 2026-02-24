@@ -201,6 +201,9 @@ RUN_CONTEXT_JSON="$(cat <<JSON
 JSON
 )"
 export DRUMBLENDER_RUN_CONTEXT_JSON="$RUN_CONTEXT_JSON"
+RUN_CONTEXT_FILE="${CKPT_DIR}/run-context-${WANDB_NAME}.json"
+printf '%s\n' "$RUN_CONTEXT_JSON" > "$RUN_CONTEXT_FILE"
+echo "[RUN_CONTEXT] Saved: $RUN_CONTEXT_FILE"
 
 case "${DRY_RUN,,}" in
   on|true|1|yes|y)

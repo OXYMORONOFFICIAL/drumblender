@@ -389,14 +389,15 @@ class SaveConfigCallbackWanb(SaveConfigCallback):
     ) -> None:
         super().setup(trainer, pl_module, stage)
 
-        # ### HIGHLIGHT: Always dump launch toggles/context into the run log directory.
-        self._write_runtime_context(trainer)
-
         # ### HIGHLIGHT: Avoid touching wandb.experiment during DDP setup.
         # On some environments this can stall before the first training step.
         world_size = getattr(trainer, "world_size", 1)
         if world_size and int(world_size) > 1:
             return
+
+        # ### HIGHLIGHT: Dump launch toggles/context only on non-DDP to avoid
+        # distributed startup stalls caused by logger path resolution.
+        self._write_runtime_context(trainer)
 
         if isinstance(trainer.logger, WandbLogger) and trainer.is_global_zero:
             config = Path(trainer.log_dir).joinpath("config.yaml")
