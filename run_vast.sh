@@ -33,9 +33,6 @@ NOISE_ENCODER_BACKBONE="${NOISE_ENCODER_BACKBONE:-soundstream}"
 TRANSIENT_ENCODER_BACKBONE="${TRANSIENT_ENCODER_BACKBONE:-soundstream}"
 NOISE_ENCODER_CFG="${NOISE_ENCODER_CFG:-}"
 TRANSIENT_ENCODER_CFG="${TRANSIENT_ENCODER_CFG:-}"
-# Legacy compatibility toggles (kept for older commands):
-NOISE_ENCODER_UPGRADE="${NOISE_ENCODER_UPGRADE:-off}"
-TRANSIENT_ENCODER_UPGRADE="${TRANSIENT_ENCODER_UPGRADE:-off}"
 
 CFG_DIR="$(cd "$(dirname "$CFG")" && pwd)"
 if [[ -z "$LOSS_CFG" ]]; then
@@ -52,13 +49,6 @@ fi
 
 if [[ -z "$TRANSIENT_SYNTH_CFG" && "$TRANSIENT_UPGRADE" == "on" ]]; then
   TRANSIENT_SYNTH_CFG="${CFG_DIR}/upgrades/transient/masked_residual_tcn.yaml"
-fi
-
-if [[ "$NOISE_ENCODER_UPGRADE" == "on" && "$NOISE_ENCODER_BACKBONE" == "soundstream" ]]; then
-  NOISE_ENCODER_BACKBONE="dac"
-fi
-if [[ "$TRANSIENT_ENCODER_UPGRADE" == "on" && "$TRANSIENT_ENCODER_BACKBONE" == "soundstream" ]]; then
-  TRANSIENT_ENCODER_BACKBONE="dac"
 fi
 
 resolve_encoder_cfg() {
@@ -226,8 +216,6 @@ RUN_CONTEXT_JSON="$(cat <<JSON
   "noise_encoder_cfg": "$NOISE_ENCODER_CFG",
   "transient_encoder_backbone": "$TRANSIENT_ENCODER_BACKBONE",
   "transient_encoder_cfg": "$TRANSIENT_ENCODER_CFG",
-  "noise_encoder_upgrade_legacy": "$NOISE_ENCODER_UPGRADE",
-  "transient_encoder_upgrade_legacy": "$TRANSIENT_ENCODER_UPGRADE",
   "resume_ckpt": "$RESUME_CKPT",
   "launch_cmd": "$LAUNCH_CMD"
 }
