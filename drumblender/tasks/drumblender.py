@@ -8,7 +8,6 @@ from typing import Optional
 from typing import Tuple
 from typing import Union
 
-import auraloss
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
@@ -91,10 +90,6 @@ class DrumBlender(pl.LightningModule):
         self._loss_accepts_lengths = self._callable_accepts_kwarg(
             self.loss_fn, "lengths"
         )
-        # ### HIGHLIGHT: Keep a pure MR-STFT diagnostic metric for fair
-        # cross-loss monitoring in WandB (not used for optimization).
-        self._mss_pure_fn = auraloss.freq.MultiResolutionSTFTLoss()
-
     # def forward(
     #     self,
     #     original: torch.Tensor,
@@ -297,7 +292,7 @@ class DrumBlender(pl.LightningModule):
         mask = (t < lengths[:, None]).to(torch.float32)
         return mask[:, None, :]
 
-    def _do_step(self, batch, compute_mss_pure: bool = True):
+    def _do_step(self, batch):
         if len(batch) == 2:
             original, params = batch
             lengths = None
@@ -318,12 +313,11 @@ class DrumBlender(pl.LightningModule):
             loss = self.loss_fn(y_hat, original, lengths=lengths)
         else:
             loss = self.loss_fn(y_hat, original)
-        mss_pure = self._mss_pure_fn(y_hat, original) if compute_mss_pure else None
         # ### HIGHLIGHT: Return the masked target for length-safe metric computation.
-        return loss, mss_pure, y_hat, original
+        return loss, y_hat, original
 
     def training_step(self, batch, batch_idx: int):
-        loss, mss_pure, y_hat, target = self._do_step(batch)
+        loss, y_hat, target = self._do_step(batch)
         # ### HIGHLIGHT: Log a dedicated per-step training loss for denser WandB curves.
         self.log(
             "train/loss_step",
@@ -337,15 +331,6 @@ class DrumBlender(pl.LightningModule):
         self.log(
             "train/loss_epoch",
             loss,
-            on_step=False,
-            on_epoch=True,
-            prog_bar=False,
-            logger=True,
-            sync_dist=True,
-        )
-        self.log(
-            "train/mss_pure_epoch",
-            mss_pure,
             on_step=False,
             on_epoch=True,
             prog_bar=False,
@@ -375,7 +360,7 @@ class DrumBlender(pl.LightningModule):
         self._val_step_log_counter += 1
 
     def validation_step(self, batch, batch_idx: int):
-        loss, _, _, _ = self._do_step(batch, compute_mss_pure=False)
+        loss, _, _ = self._do_step(batch)
         # ### HIGHLIGHT: Use one canonical validation epoch metric for logging,
         # LR scheduling, early stopping, and checkpoint selection.
         self.log(
@@ -422,7 +407,7 @@ class DrumBlender(pl.LightningModule):
         return loss
 
     def test_step(self, batch, batch_idx: int):
-        loss, _, y_hat, target = self._do_step(batch)
+        loss, y_hat, target = self._do_step(batch)
         self.log("test/loss", loss)
         if hasattr(self, "metrics"):
             for name, metric in self.metrics.items():
