@@ -15,16 +15,16 @@ model:
 optimizer:
   class_path: torch.optim.AdamW
   init_args:
-    lr: 0.00005
+    lr: 0.0001
     weight_decay: 1e-6
 lr_scheduler:
   class_path: pytorch_lightning.cli.ReduceLROnPlateau
   init_args:
     monitor: validation/loss_epoch
     factor: 0.5
-    patience: 10
+    patience: 8
     # ### HIGHLIGHT: `min_lr` belongs to ReduceLROnPlateau (scheduler), not AdamW.
-    min_lr: 0.000001
+    min_lr: 0.00000625
     threshold_mode: rel
     threshold: 0.01
 data: data/percussion.yaml
@@ -32,7 +32,7 @@ trainer:
   devices: 1
   accelerator: gpu
   # ### HIGHLIGHT: Stop runaway training by default; use scripts to override when needed.
-  max_epochs: 100
+  max_epochs: 90
   # logger:
   #   class_path: pytorch_lightning.loggers.WandbLogger
   #   init_args:
@@ -48,8 +48,8 @@ trainer:
     - class_path: pytorch_lightning.callbacks.early_stopping.EarlyStopping
       init_args:
         monitor: validation/loss_epoch
-        patience: 20
-        min_delta: 0.005
+        patience: 15
+        min_delta: 0.01
         check_finite: true
         # ### HIGHLIGHT: Count patience at epoch boundaries even when validation runs multiple times per epoch.
         check_on_train_epoch_end: true
