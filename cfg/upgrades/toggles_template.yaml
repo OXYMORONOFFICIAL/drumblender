@@ -17,17 +17,18 @@ upgrades:
       prior_weight_inc: 0.002
       prior_weight_curv: 0.0005
       prior_weight_floor: 0.002
+      prior_weight_onset_band: 0.01
       prior_decay_start_ms: 40.0
+      prior_onset_window_ms: 25.0
       prior_num_bands: 16
   transient:
     enabled: false
-    variant: baseline  # baseline | masked_residual_tcn
-    masked_residual_tcn:
-      residual_mode: true
+    variant: baseline  # baseline | onset_masked_tcn
+    onset_masked_tcn:
       mask_enabled: true
       sample_rate: 48000
-      fade_start_ms: 15.0
-      fade_end_ms: 70.0
+      fade_start_ms: 10.0
+      fade_end_ms: 40.0
       tail_gain: 0.0
   encoders:
     transient:

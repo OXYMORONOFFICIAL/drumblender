@@ -16,7 +16,9 @@ init_args:
   prior_weight_inc: 0.0002
   prior_weight_curv: 0.00005
   prior_weight_floor: 0.0
+  prior_weight_onset_band: 0.01
   prior_decay_start_ms: 20.0
+  prior_onset_window_ms: 25.0
   prior_n_fft: 1024
   prior_hop_length: 256
   prior_win_length: 1024

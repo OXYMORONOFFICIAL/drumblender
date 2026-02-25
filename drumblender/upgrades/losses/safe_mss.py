@@ -24,6 +24,7 @@ class SafeScaleInvariantMSSLoss(nn.Module):
         + w_inc  * L_inc   (only over-predicted positive band-energy jumps)
         + w_curv * L_curv  (only over-predicted curvature spikes)
         + w_floor* L_floor (prevent over-short decay tails)
+        + w_onset*L_onset  (only over-predicted onset band energy)
 
     Length-aware safety:
         For very short samples (absolute duration), reduce prior strength to avoid
@@ -48,7 +49,9 @@ class SafeScaleInvariantMSSLoss(nn.Module):
         prior_weight_inc: float = 0.0,
         prior_weight_curv: float = 0.0,
         prior_weight_floor: float = 0.0,
+        prior_weight_onset_band: float = 0.0,
         prior_decay_start_ms: float = 40.0,
+        prior_onset_window_ms: float = 25.0,
         prior_n_fft: int = 1024,
         prior_hop_length: int = 256,
         prior_win_length: Optional[int] = None,
@@ -88,7 +91,9 @@ class SafeScaleInvariantMSSLoss(nn.Module):
         self.prior_weight_inc = float(prior_weight_inc)
         self.prior_weight_curv = float(prior_weight_curv)
         self.prior_weight_floor = float(prior_weight_floor)
+        self.prior_weight_onset_band = float(prior_weight_onset_band)
         self.prior_decay_start_ms = float(prior_decay_start_ms)
+        self.prior_onset_window_ms = float(prior_onset_window_ms)
         self.prior_n_fft = int(prior_n_fft)
         self.prior_hop_length = int(prior_hop_length)
         self.prior_win_length = (
@@ -223,6 +228,32 @@ class SafeScaleInvariantMSSLoss(nn.Module):
         t = torch.arange(total_true.size(1), device=total_true.device).unsqueeze(0)
         return t >= decay_start.unsqueeze(1)
 
+    def _onset_mask_from_target(self, total_true: torch.Tensor) -> torch.Tensor:
+        # total_true shape: [B, T_frames]
+        if total_true.size(1) < 2:
+            return torch.zeros_like(total_true, dtype=torch.bool)
+
+        diff_true = total_true[:, 1:] - total_true[:, :-1]
+        onset_frame = diff_true.argmax(dim=1) + 1
+
+        onset_window_frames = int(
+            round(
+                self.prior_onset_window_ms
+                * self.sample_rate
+                / (1000.0 * self.prior_hop_length)
+            )
+        )
+        onset_window_frames = max(0, onset_window_frames)
+        onset_end = torch.clamp(
+            onset_frame + onset_window_frames,
+            min=0,
+            max=total_true.size(1) - 1,
+        )
+
+        t = torch.arange(total_true.size(1), device=total_true.device).unsqueeze(0)
+        # Include frame 0 by design to directly target first-frame wideband artifacts.
+        return t <= onset_end.unsqueeze(1)
+
     def _prior_length_gate(
         self,
         pred: torch.Tensor,
@@ -263,6 +294,7 @@ class SafeScaleInvariantMSSLoss(nn.Module):
             self.prior_weight_inc <= 0.0
             and self.prior_weight_curv <= 0.0
             and self.prior_weight_floor <= 0.0
+            and self.prior_weight_onset_band <= 0.0
         ):
             return pred.new_zeros(())
 
@@ -272,6 +304,7 @@ class SafeScaleInvariantMSSLoss(nn.Module):
 
         total_pred = band_pred.sum(dim=1)
         total_true = band_true.sum(dim=1)
+        onset_mask = self._onset_mask_from_target(total_true)
         decay_mask = self._decay_mask_from_target(total_true)
         decay_valid = (decay_mask.sum(dim=1) >= self.prior_min_decay_frames).to(
             dtype=pred.dtype
@@ -315,6 +348,15 @@ class SafeScaleInvariantMSSLoss(nn.Module):
             valid_mask = valid_mask * floor_gate.unsqueeze(1)
             floor_loss = self._masked_huber_mean(excess, valid_mask)
             prior_loss = prior_loss + self.prior_weight_floor * floor_loss
+
+        # Onset band-energy prior: penalize only over-predicted band energy at onset.
+        if self.prior_weight_onset_band > 0.0:
+            eps_bt = self.prior_eps_base + self.prior_eps_rel * band_true
+            excess = torch.relu(band_pred - band_true - eps_bt)
+            mask = onset_mask.unsqueeze(1).to(excess.dtype)
+            mask = mask * length_gate
+            onset_loss = self._masked_huber_mean(excess, mask)
+            prior_loss = prior_loss + self.prior_weight_onset_band * onset_loss
 
         return prior_loss
 

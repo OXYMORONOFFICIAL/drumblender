@@ -120,6 +120,22 @@ def _copy_if_exists(src: Path, dst: Path) -> None:
         shutil.copy2(src, dst)
 
 
+def _copy_path(src: Path, dst: Path) -> None:
+    if src.is_file():
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dst)
+        return
+    if src.is_dir():
+        dst.mkdir(parents=True, exist_ok=True)
+        for p in src.rglob("*"):
+            if not p.is_file():
+                continue
+            rel = p.relative_to(src)
+            out = dst / rel
+            out.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(p, out)
+
+
 def _resolve_encoder_cfg(
     cfg_dir: Path,
     kind: str,
@@ -296,6 +312,123 @@ def _collect_git_info() -> Dict[str, Any]:
     return info
 
 
+def _copy_run_context_bundle(
+    ckpt_path: Path,
+    package_root: Path,
+    explicit_run_context_json: Optional[str] = None,
+    extra_paths: Optional[list[str]] = None,
+) -> None:
+    """
+    Copy run-context and nearby logs/settings for ckpts saved under ./ckpt.
+
+    This complements `_copy_training_context` (which is best when ckpt lives under
+    .../checkpoints/ in a Lightning run dir).
+    """
+    ctx_root = package_root / "training_context"
+    run_ctx_dir = ctx_root / "run_context"
+    refs_dir = ctx_root / "referenced_configs"
+    logs_dir = ctx_root / "logs"
+    extra_dir = ctx_root / "extra"
+    run_ctx_dir.mkdir(parents=True, exist_ok=True)
+    refs_dir.mkdir(parents=True, exist_ok=True)
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    extra_dir.mkdir(parents=True, exist_ok=True)
+
+    selected: list[Path] = []
+
+    # Explicit run-context JSON (if provided)
+    if explicit_run_context_json is not None and explicit_run_context_json.strip() != "":
+        p = Path(explicit_run_context_json)
+        if not p.is_absolute():
+            p = Path.cwd() / p
+        if p.is_file():
+            dst = run_ctx_dir / "run-context.explicit.json"
+            _copy_if_exists(p, dst)
+            selected.append(dst)
+
+    # Auto-pick nearby run-context files under ckpt directory.
+    ckpt_parent = ckpt_path.parent
+    candidates = sorted(ckpt_parent.glob("run-context-*.json"))
+    if len(candidates) > 0:
+        ckpt_mtime = ckpt_path.stat().st_mtime if ckpt_path.is_file() else 0.0
+        nearest = min(candidates, key=lambda p: abs(p.stat().st_mtime - ckpt_mtime))
+        latest = max(candidates, key=lambda p: p.stat().st_mtime)
+        auto_pick = [nearest]
+        if latest != nearest:
+            auto_pick.append(latest)
+
+        for p in auto_pick:
+            dst = run_ctx_dir / p.name
+            _copy_if_exists(p, dst)
+            selected.append(dst)
+
+        with (run_ctx_dir / "auto_candidates.txt").open("w", encoding="utf-8") as f:
+            for p in candidates:
+                f.write(str(p) + "\n")
+
+    # Parse selected context files and copy referenced config files.
+    referenced_keys = [
+        "cfg",
+        "loss_cfg",
+        "noise_encoder_cfg",
+        "transient_encoder_cfg",
+        "transient_synth_cfg",
+    ]
+    for ctx_path in selected:
+        try:
+            with ctx_path.open("r", encoding="utf-8") as f:
+                obj = json.load(f)
+        except Exception:
+            continue
+
+        launch_cmd = obj.get("launch_cmd")
+        if isinstance(launch_cmd, str) and len(launch_cmd) > 0:
+            txt_path = run_ctx_dir / f"{ctx_path.stem}.launch_cmd.txt"
+            txt_path.write_text(launch_cmd + "\n", encoding="utf-8")
+
+        script_name = obj.get("script")
+        if isinstance(script_name, str) and len(script_name) > 0:
+            sp = Path(script_name)
+            if not sp.is_absolute():
+                sp = Path.cwd() / sp
+            if sp.is_file():
+                _copy_if_exists(sp, refs_dir / sp.name)
+
+        for k in referenced_keys:
+            v = obj.get(k)
+            if not isinstance(v, str) or len(v.strip()) == 0:
+                continue
+            p = Path(v)
+            if not p.is_absolute():
+                p = Path.cwd() / p
+            if p.is_file():
+                _copy_if_exists(p, refs_dir / p.name)
+
+    # Copy nearest .log file in ./logs by modification time.
+    repo_logs = Path("logs")
+    if repo_logs.exists():
+        log_files = [p for p in repo_logs.rglob("*.log") if p.is_file()]
+        if len(log_files) > 0:
+            ckpt_mtime = ckpt_path.stat().st_mtime if ckpt_path.is_file() else 0.0
+            nearest_log = min(log_files, key=lambda p: abs(p.stat().st_mtime - ckpt_mtime))
+            _copy_if_exists(nearest_log, logs_dir / nearest_log.name)
+
+    # User-provided extra files/dirs.
+    if extra_paths is not None:
+        for item in extra_paths:
+            if item is None:
+                continue
+            s = str(item).strip()
+            if s == "":
+                continue
+            p = Path(s)
+            if not p.is_absolute():
+                p = Path.cwd() / p
+            if not p.exists():
+                continue
+            _copy_path(p, extra_dir / p.name)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str, required=True, help="Model config YAML")
@@ -393,6 +526,18 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Create <output-dir>.tar.gz after export",
     )
+    parser.add_argument(
+        "--run-context-json",
+        type=str,
+        default=None,
+        help="Optional explicit run-context JSON to include in the package.",
+    )
+    parser.add_argument(
+        "--extra-path",
+        action="append",
+        default=[],
+        help="Extra file/dir path to include under training_context/extra (repeatable).",
+    )
     return parser.parse_args()
 
 
@@ -428,6 +573,12 @@ def main() -> None:
     ckpt_path = Path(args.ckpt)
     _copy_if_exists(ckpt_path, ckpt_root / ckpt_path.name)
     _copy_training_context(ckpt_path, output_dir)
+    _copy_run_context_bundle(
+        ckpt_path=ckpt_path,
+        package_root=output_dir,
+        explicit_run_context_json=args.run_context_json,
+        extra_paths=args.extra_path,
+    )
 
     dataset = AudioWithParametersDataset(
         data_dir=args.data_dir,

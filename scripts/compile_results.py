@@ -22,7 +22,15 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import torch
-import torchaudio
+try:
+    import torchaudio  # type: ignore
+except Exception:
+    torchaudio = None
+
+try:
+    import soundfile as sf  # type: ignore
+except Exception:
+    sf = None
 
 MODELS = [
     "modal",
@@ -86,6 +94,49 @@ def _pad_to_min_length(x: torch.Tensor, min_len: int) -> torch.Tensor:
     if x.shape[-1] >= min_len:
         return x
     return torch.nn.functional.pad(x, (0, int(min_len - x.shape[-1])))
+
+
+def _load_audio_mono(path: Path) -> Tuple[torch.Tensor, int]:
+    # 1) torchaudio path
+    if torchaudio is not None:
+        try:
+            w, sr = torchaudio.load(str(path))
+            w = w[:1, :].to(torch.float32)
+            return w, int(sr)
+        except Exception:
+            pass
+
+    # 2) soundfile fallback (Windows-friendly; no torchcodec required)
+    if sf is not None:
+        try:
+            data, sr = sf.read(str(path), always_2d=True)
+            mono = torch.from_numpy(data[:, :1].T).to(torch.float32)
+            return mono, int(sr)
+        except Exception:
+            pass
+
+    raise RuntimeError(
+        f"Failed to read audio: {path}. Install one of: torchcodec-compatible torchaudio, soundfile."
+    )
+
+
+def _resample_mono(w: torch.Tensor, sr_in: int, sr_out: int) -> torch.Tensor:
+    if sr_in == sr_out:
+        return w
+
+    if torchaudio is not None:
+        try:
+            return torchaudio.functional.resample(w, sr_in, sr_out)
+        except Exception:
+            pass
+
+    # fallback: linear interpolation in time domain
+    n_in = int(w.shape[-1])
+    n_out = max(1, int(round(n_in * float(sr_out) / float(sr_in))))
+    wr = torch.nn.functional.interpolate(
+        w.unsqueeze(0), size=n_out, mode="linear", align_corners=False
+    ).squeeze(0)
+    return wr
 
 
 def _lsd_single(x: torch.Tensor, y: torch.Tensor, n_fft: int = 8092, hop: int = 64) -> float:
@@ -183,13 +234,13 @@ def _compute_or_load_per_file_metrics(run_dir: Path) -> List[Dict[str, float]]:
             if not recon_path.is_file() or not target_path.is_file():
                 continue
 
-            recon, _ = torchaudio.load(str(recon_path))
-            target, _ = torchaudio.load(str(target_path))
-            recon = recon[:1, :]
-            target = target[:1, :]
+            recon, sr_r = _load_audio_mono(recon_path)
+            target, sr_t = _load_audio_mono(target_path)
+            if sr_r != sr_t:
+                recon = _resample_mono(recon, sr_r, sr_t)
 
-            x = recon.squeeze(0).unsqueeze(0)
-            y = target.squeeze(0).unsqueeze(0)
+            x = recon
+            y = target
 
             lsd = _lsd_single(x, y)
             sf = _sf_single(x, y)

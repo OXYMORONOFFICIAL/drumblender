@@ -7,16 +7,16 @@ from einops import repeat
 from drumblender.models.tcn import TCN
 
 
-class MaskedResidualTransientTCN(nn.Module):
+class OnsetMaskedTransientTCN(nn.Module):
     """
-    Optional transient upgrade that keeps baseline TCN topology, then adds:
+    Transient TCN with an onset-focused time mask.
 
-    1) residual mode: y = x + (tcn(x) - x)
-    2) time mask: constrain transient edits to early time region
+    Behavior:
+    - Computes transient branch output y = TCN(x)
+    - Applies a time mask so early samples are preserved and later samples are
+      faded to `tail_gain`
 
-    Both switches are independently configurable and default to ON for the
-    upgrade preset. Keeping this class outside `drumblender/synths/` allows
-    baseline behavior to stay unchanged.
+    This class intentionally does not implement residual mode.
     """
 
     def __init__(
@@ -34,11 +34,10 @@ class MaskedResidualTransientTCN(nn.Module):
         transient_conditioning: bool = False,
         transient_conditioning_channels: int = 32,
         transient_conditioning_length: int = 24000,
-        residual_mode: bool = True,
         mask_enabled: bool = True,
         sample_rate: int = 48000,
-        fade_start_ms: float = 15.0,
-        fade_end_ms: float = 70.0,
+        fade_start_ms: float = 10.0,
+        fade_end_ms: float = 40.0,
         tail_gain: float = 0.0,
     ):
         super().__init__()
@@ -64,7 +63,6 @@ class MaskedResidualTransientTCN(nn.Module):
             )
             self.transient_conditioning = nn.Parameter(p, requires_grad=True)
 
-        self.residual_mode = bool(residual_mode)
         self.mask_enabled = bool(mask_enabled)
         self.sample_rate = int(sample_rate)
         self.fade_start_ms = float(fade_start_ms)
@@ -108,7 +106,5 @@ class MaskedResidualTransientTCN(nn.Module):
             x_in = torch.cat([x, cond], dim=1)
 
         y = self.tcn(x_in, embedding)
-        delta = (y - x) if self.residual_mode else y
-        delta = delta * self._time_mask(x.size(-1), x.device, x.dtype)
-        return x + delta if self.residual_mode else delta
+        return y * self._time_mask(x.size(-1), x.device, x.dtype)
 

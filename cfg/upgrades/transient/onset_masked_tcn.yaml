@@ -1,4 +1,4 @@
-class_path: drumblender.upgrades.transient.MaskedResidualTransientTCN
+class_path: drumblender.upgrades.transient.OnsetMaskedTransientTCN
 init_args:
   in_channels: 1
   hidden_channels: 32
@@ -10,10 +10,9 @@ init_args:
   film_conditioning: true
   film_embedding_size: 128
   film_batch_norm: true
-  residual_mode: true
   mask_enabled: true
   sample_rate: 48000
-  fade_start_ms: 15.0
-  fade_end_ms: 70.0
+  fade_start_ms: 10.0
+  fade_end_ms: 40.0
   tail_gain: 0.0
 

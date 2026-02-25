@@ -22,7 +22,7 @@ lr_scheduler:
   init_args:
     monitor: validation/loss_epoch
     factor: 0.5
-    patience: 8
+    patience: 5
     # ### HIGHLIGHT: `min_lr` belongs to ReduceLROnPlateau (scheduler), not AdamW.
     min_lr: 0.00000625
     threshold_mode: rel
@@ -32,7 +32,7 @@ trainer:
   devices: 1
   accelerator: gpu
   # ### HIGHLIGHT: Stop runaway training by default; use scripts to override when needed.
-  max_epochs: 90
+  max_epochs: 75
   # logger:
   #   class_path: pytorch_lightning.loggers.WandbLogger
   #   init_args:
@@ -48,7 +48,7 @@ trainer:
     - class_path: pytorch_lightning.callbacks.early_stopping.EarlyStopping
       init_args:
         monitor: validation/loss_epoch
-        patience: 15
+        patience: 9
         min_delta: 0.01
         check_finite: true
         # ### HIGHLIGHT: Count patience at epoch boundaries even when validation runs multiple times per epoch.

@@ -23,13 +23,13 @@ lr_scheduler:
   init_args:
     monitor: validation/loss
     factor: 0.5
-    patience: 8
+    patience: 5
     min_lr: 0.00000625
 data: data/percussion.yaml
 trainer:
   devices: 1
   accelerator: gpu
-  max_epochs: 90
+  max_epochs: 75
   # logger:
   #   class_path: pytorch_lightning.loggers.WandbLogger
   #   init_args:
@@ -45,7 +45,7 @@ trainer:
     - class_path: pytorch_lightning.callbacks.early_stopping.EarlyStopping
       init_args:
         monitor: validation/loss
-        patience: 15
+        patience: 9
         min_delta: 0.01
         check_finite: true
     - class_path: pytorch_lightning.callbacks.LearningRateMonitor

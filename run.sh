@@ -12,7 +12,7 @@ CFG="${CFG:-/workspace/drumblender/cfg/05_all_parallel.yaml}"
 DATA_DIR="${DATA_DIR:-/private/datasets/modal_features/processed_modal_flat}"
 CKPT_DIR="${CKPT_DIR:-/workspace/drumblender/ckpt}"
 RESUME_CKPT="${RESUME_CKPT:-}"
-MAX_EPOCHS="${MAX_EPOCHS:-100}"
+MAX_EPOCHS="${MAX_EPOCHS:-75}"
 ACCUM_GRAD_BATCHES="${ACCUM_GRAD_BATCHES:-2}"
 DRY_RUN="${DRY_RUN:-off}"
 LOSS_UPGRADE="${LOSS_UPGRADE:-off}"
@@ -21,10 +21,9 @@ SI_NORM="${SI_NORM:-on}"
 DECAY_PRIOR="${DECAY_PRIOR:-off}"
 TRANSIENT_UPGRADE="${TRANSIENT_UPGRADE:-off}"
 TRANSIENT_SYNTH_CFG="${TRANSIENT_SYNTH_CFG:-}"
-TRANSIENT_RESIDUAL="${TRANSIENT_RESIDUAL:-on}"
 TRANSIENT_MASK="${TRANSIENT_MASK:-on}"
-TRANSIENT_FADE_START_MS="${TRANSIENT_FADE_START_MS:-15.0}"
-TRANSIENT_FADE_END_MS="${TRANSIENT_FADE_END_MS:-70.0}"
+TRANSIENT_FADE_START_MS="${TRANSIENT_FADE_START_MS:-10.0}"
+TRANSIENT_FADE_END_MS="${TRANSIENT_FADE_END_MS:-40.0}"
 TRANSIENT_TAIL_GAIN="${TRANSIENT_TAIL_GAIN:-0.0}"
 NOISE_ENCODER_BACKBONE="${NOISE_ENCODER_BACKBONE:-soundstream}"
 TRANSIENT_ENCODER_BACKBONE="${TRANSIENT_ENCODER_BACKBONE:-soundstream}"
@@ -45,7 +44,7 @@ if [[ -z "$LOSS_CFG" ]]; then
 fi
 
 if [[ -z "$TRANSIENT_SYNTH_CFG" && "$TRANSIENT_UPGRADE" == "on" ]]; then
-  TRANSIENT_SYNTH_CFG="${CFG_DIR}/upgrades/transient/masked_residual_tcn.yaml"
+  TRANSIENT_SYNTH_CFG="${CFG_DIR}/upgrades/transient/onset_masked_tcn.yaml"
 fi
 
 resolve_encoder_cfg() {
@@ -177,10 +176,8 @@ if [[ "$LOSS_UPGRADE" == "on" ]]; then
 fi
 
 if [[ "$TRANSIENT_UPGRADE" == "on" ]]; then
-  TRANSIENT_RESIDUAL_BOOL="$(to_bool "$TRANSIENT_RESIDUAL")"
   TRANSIENT_MASK_BOOL="$(to_bool "$TRANSIENT_MASK")"
   CMD+=(
-    --model.init_args.transient_synth.init_args.residual_mode "$TRANSIENT_RESIDUAL_BOOL"
     --model.init_args.transient_synth.init_args.mask_enabled "$TRANSIENT_MASK_BOOL"
     --model.init_args.transient_synth.init_args.fade_start_ms "$TRANSIENT_FADE_START_MS"
     --model.init_args.transient_synth.init_args.fade_end_ms "$TRANSIENT_FADE_END_MS"
@@ -203,7 +200,6 @@ RUN_CONTEXT_JSON="$(cat <<JSON
   "decay_prior": "$DECAY_PRIOR",
   "transient_upgrade": "$TRANSIENT_UPGRADE",
   "transient_synth_cfg": "$TRANSIENT_SYNTH_CFG",
-  "transient_residual": "$TRANSIENT_RESIDUAL",
   "transient_mask": "$TRANSIENT_MASK",
   "transient_fade_start_ms": "$TRANSIENT_FADE_START_MS",
   "transient_fade_end_ms": "$TRANSIENT_FADE_END_MS",
