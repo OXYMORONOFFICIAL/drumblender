@@ -297,7 +297,7 @@ class DrumBlender(pl.LightningModule):
         mask = (t < lengths[:, None]).to(torch.float32)
         return mask[:, None, :]
 
-    def _do_step(self, batch):
+    def _do_step(self, batch, compute_mss_pure: bool = True):
         if len(batch) == 2:
             original, params = batch
             lengths = None
@@ -318,7 +318,7 @@ class DrumBlender(pl.LightningModule):
             loss = self.loss_fn(y_hat, original, lengths=lengths)
         else:
             loss = self.loss_fn(y_hat, original)
-        mss_pure = self._mss_pure_fn(y_hat, original)
+        mss_pure = self._mss_pure_fn(y_hat, original) if compute_mss_pure else None
         # ### HIGHLIGHT: Return the masked target for length-safe metric computation.
         return loss, mss_pure, y_hat, original
 
@@ -375,7 +375,7 @@ class DrumBlender(pl.LightningModule):
         self._val_step_log_counter += 1
 
     def validation_step(self, batch, batch_idx: int):
-        loss, mss_pure, _, _ = self._do_step(batch)
+        loss, _, _, _ = self._do_step(batch, compute_mss_pure=False)
         # ### HIGHLIGHT: Use one canonical validation epoch metric for logging,
         # LR scheduling, early stopping, and checkpoint selection.
         self.log(
@@ -387,16 +387,6 @@ class DrumBlender(pl.LightningModule):
             logger=True,
             sync_dist=True,
         )
-        self.log(
-            "validation/mss_pure_epoch",
-            mss_pure,
-            on_step=False,
-            on_epoch=True,
-            prog_bar=False,
-            logger=True,
-            sync_dist=True,
-        )
-
         # ### HIGHLIGHT: Align validation step-loss x-axis with training global_step in WandB
         # and rotate which validation batch is used for this step-level snapshot.
         if batch_idx == self._val_step_log_batch_idx:
