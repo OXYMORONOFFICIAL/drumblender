@@ -118,7 +118,6 @@ CMD=(
   --trainer.logger.init_args.name "$WANDB_NAME"
   --trainer.logger.init_args.save_dir "$WANDB_DIR"
   --trainer.logger.init_args.log_model false
-  --trainer.callbacks.1.init_args.dirpath "$RUN_CKPT_DIR"
   --model.init_args.loss_fn "$LOSS_CFG"
   --data.class_path drumblender.data.AudioDataModule
   --data.data_dir "$DATA_DIR"
