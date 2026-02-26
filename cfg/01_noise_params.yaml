@@ -32,7 +32,7 @@ trainer:
   devices: 1
   accelerator: gpu
   # ### HIGHLIGHT: Stop runaway training by default; use scripts to override when needed.
-  max_epochs: 75
+  max_epochs: 70
   # logger:
   #   class_path: pytorch_lightning.loggers.WandbLogger
   #   init_args:

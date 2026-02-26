@@ -11,8 +11,10 @@ RUN_SEED="${RUN_SEED:-20260218}"
 CFG="${CFG:-/workspace/drumblender/cfg/05_all_parallel.yaml}"
 DATA_DIR="${DATA_DIR:-/workspace/datasets/modal_features/processed_modal_flat}"
 CKPT_DIR="${CKPT_DIR:-/workspace/drumblender/ckpt}"
+RUN_CKPT_DIR="${CKPT_DIR}/${WANDB_NAME}"
+RUN_LOG_FILE="${RUN_CKPT_DIR}/train.log"
 RESUME_CKPT="${RESUME_CKPT:-}"
-MAX_EPOCHS="${MAX_EPOCHS:-75}"
+MAX_EPOCHS="${MAX_EPOCHS:-70}"
 ACCUM_GRAD_BATCHES="${ACCUM_GRAD_BATCHES:-1}"
 BATCH_SIZE="${BATCH_SIZE:-6}"
 NUM_WORKERS="${NUM_WORKERS:-12}"
@@ -22,12 +24,6 @@ LOSS_UPGRADE="${LOSS_UPGRADE:-off}"
 LOSS_CFG="${LOSS_CFG:-}"
 SI_NORM="${SI_NORM:-on}"
 DECAY_PRIOR="${DECAY_PRIOR:-off}"
-TRANSIENT_UPGRADE="${TRANSIENT_UPGRADE:-off}"
-TRANSIENT_SYNTH_CFG="${TRANSIENT_SYNTH_CFG:-}"
-TRANSIENT_MASK="${TRANSIENT_MASK:-on}"
-TRANSIENT_FADE_START_MS="${TRANSIENT_FADE_START_MS:-10.0}"
-TRANSIENT_FADE_END_MS="${TRANSIENT_FADE_END_MS:-40.0}"
-TRANSIENT_TAIL_GAIN="${TRANSIENT_TAIL_GAIN:-0.0}"
 NOISE_ENCODER_BACKBONE="${NOISE_ENCODER_BACKBONE:-soundstream}"
 TRANSIENT_ENCODER_BACKBONE="${TRANSIENT_ENCODER_BACKBONE:-soundstream}"
 NOISE_ENCODER_CFG="${NOISE_ENCODER_CFG:-}"
@@ -44,10 +40,6 @@ if [[ -z "$LOSS_CFG" ]]; then
   else
     LOSS_CFG="${CFG_DIR}/loss/mss.yaml"
   fi
-fi
-
-if [[ -z "$TRANSIENT_SYNTH_CFG" && "$TRANSIENT_UPGRADE" == "on" ]]; then
-  TRANSIENT_SYNTH_CFG="${CFG_DIR}/upgrades/transient/onset_masked_tcn.yaml"
 fi
 
 resolve_encoder_cfg() {
@@ -106,7 +98,7 @@ to_bool() {
   esac
 }
 
-mkdir -p "$WANDB_DIR" "$CKPT_DIR" /workspace/drumblender/lightning_logs
+mkdir -p "$WANDB_DIR" "$CKPT_DIR" "$RUN_CKPT_DIR" /workspace/drumblender/lightning_logs
 
 export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-max_split_size_mb:256}"
 export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
@@ -128,6 +120,7 @@ CMD=(
   --trainer.logger.init_args.name "$WANDB_NAME"
   --trainer.logger.init_args.save_dir "$WANDB_DIR"
   --trainer.logger.init_args.log_model false
+  --trainer.callbacks.1.init_args.dirpath "$RUN_CKPT_DIR"
   --model.init_args.loss_fn "$LOSS_CFG"
   --data.class_path drumblender.data.AudioDataModule
   --data.data_dir "$DATA_DIR"
@@ -147,10 +140,6 @@ CMD=(
 
 if [[ -n "$RESUME_CKPT" ]]; then
   CMD+=(--ckpt_path "$RESUME_CKPT")
-fi
-
-if [[ -n "$TRANSIENT_SYNTH_CFG" ]]; then
-  CMD+=(--model.init_args.transient_synth "$TRANSIENT_SYNTH_CFG")
 fi
 
 if [[ -n "$NOISE_ENCODER_CFG" ]]; then
@@ -176,16 +165,6 @@ if [[ "$LOSS_UPGRADE" == "on" ]]; then
   )
 fi
 
-if [[ "$TRANSIENT_UPGRADE" == "on" ]]; then
-  TRANSIENT_MASK_BOOL="$(to_bool "$TRANSIENT_MASK")"
-  CMD+=(
-    --model.init_args.transient_synth.init_args.mask_enabled "$TRANSIENT_MASK_BOOL"
-    --model.init_args.transient_synth.init_args.fade_start_ms "$TRANSIENT_FADE_START_MS"
-    --model.init_args.transient_synth.init_args.fade_end_ms "$TRANSIENT_FADE_END_MS"
-    --model.init_args.transient_synth.init_args.tail_gain "$TRANSIENT_TAIL_GAIN"
-  )
-fi
-
 LAUNCH_CMD="${CMD[*]}"
 RUN_CONTEXT_JSON="$(cat <<JSON
 {
@@ -202,23 +181,19 @@ RUN_CONTEXT_JSON="$(cat <<JSON
   "loss_cfg": "$LOSS_CFG",
   "si_norm": "$SI_NORM",
   "decay_prior": "$DECAY_PRIOR",
-  "transient_upgrade": "$TRANSIENT_UPGRADE",
-  "transient_synth_cfg": "$TRANSIENT_SYNTH_CFG",
-  "transient_mask": "$TRANSIENT_MASK",
-  "transient_fade_start_ms": "$TRANSIENT_FADE_START_MS",
-  "transient_fade_end_ms": "$TRANSIENT_FADE_END_MS",
-  "transient_tail_gain": "$TRANSIENT_TAIL_GAIN",
   "noise_encoder_backbone": "$NOISE_ENCODER_BACKBONE",
   "noise_encoder_cfg": "$NOISE_ENCODER_CFG",
   "transient_encoder_backbone": "$TRANSIENT_ENCODER_BACKBONE",
   "transient_encoder_cfg": "$TRANSIENT_ENCODER_CFG",
+  "run_ckpt_dir": "$RUN_CKPT_DIR",
+  "run_log_file": "$RUN_LOG_FILE",
   "resume_ckpt": "$RESUME_CKPT",
   "launch_cmd": "$LAUNCH_CMD"
 }
 JSON
 )"
 export DRUMBLENDER_RUN_CONTEXT_JSON="$RUN_CONTEXT_JSON"
-RUN_CONTEXT_FILE="${CKPT_DIR}/run-context-${WANDB_NAME}.json"
+RUN_CONTEXT_FILE="${RUN_CKPT_DIR}/run-context-${WANDB_NAME}.json"
 printf '%s\n' "$RUN_CONTEXT_JSON" > "$RUN_CONTEXT_FILE"
 echo "[RUN_CONTEXT] Saved: $RUN_CONTEXT_FILE"
 
@@ -227,9 +202,11 @@ case "${DRY_RUN,,}" in
     echo "[DRY_RUN] Final launch command:"
     printf '%q ' "${CMD[@]}"
     echo
+    echo "[DRY_RUN] Run checkpoint dir: $RUN_CKPT_DIR"
+    echo "[DRY_RUN] Run log file: $RUN_LOG_FILE"
     exit 0
     ;;
 esac
 
-"${CMD[@]}"
+"${CMD[@]}" 2>&1 | tee -a "$RUN_LOG_FILE"
 

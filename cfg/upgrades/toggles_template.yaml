@@ -23,13 +23,7 @@ upgrades:
       prior_num_bands: 16
   transient:
     enabled: false
-    variant: baseline  # baseline | onset_masked_tcn
-    onset_masked_tcn:
-      mask_enabled: true
-      sample_rate: 48000
-      fade_start_ms: 10.0
-      fade_end_ms: 40.0
-      tail_gain: 0.0
+    variant: baseline
   encoders:
     transient:
       enabled: false
