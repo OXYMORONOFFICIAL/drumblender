@@ -46,6 +46,16 @@ class BasisStats:
 
 
 @dataclass
+class EffectAxesStats:
+    axes: torch.Tensor      # [K, D]
+    steps: torch.Tensor     # [K]
+    z_mean: torch.Tensor    # [D]
+    z_std: torch.Tensor     # [D]
+    picked_indices: List[int]
+    source_path: Path
+
+
+@dataclass
 class SampleState:
     sample_index: int
     sample_key: str
@@ -163,6 +173,62 @@ def _build_resolved_config(base_cfg: Path, loss_cfg: Optional[str], noise_backbo
     tmp = cfg_dir / f".control_live_resolved_{int(time.time())}.yaml"
     tmp.write_text(yaml.safe_dump(cfg, sort_keys=False), encoding="utf-8")
     return tmp, True
+
+
+def _infer_effect_axes_path(run_dir: Path, explicit: Optional[str], root: Path) -> Path:
+    if explicit:
+        p = Path(explicit).expanduser().resolve()
+        if not p.is_file():
+            raise FileNotFoundError(f"--effect-axes not found: {p}")
+        return p
+
+    cands: List[Path] = []
+    cands.extend(run_dir.glob("analysis/effect_axes_*/effect_axes.pt"))
+    cands.extend(run_dir.glob("analysis/effect_axes.pt"))
+    cands.extend((root / "logs" / "effect_axes").glob(run_dir.name + "/effect_axes.pt"))
+    cands.extend((root / "logs" / "effect_axes").glob("**/effect_axes.pt"))
+    p = _latest(cands)
+    if p is None:
+        raise FileNotFoundError(
+            "Could not infer effect_axes.pt. Pass --effect-axes explicitly."
+        )
+    return p.resolve()
+
+
+def _load_effect_axes(path: Path, dev: torch.device) -> EffectAxesStats:
+    obj = torch.load(path, map_location="cpu")
+    if not isinstance(obj, dict):
+        raise RuntimeError(f"Invalid effect axes payload: {path}")
+    for k in ("axes", "steps", "z_mean", "z_std"):
+        if k not in obj:
+            raise RuntimeError(f"Missing '{k}' in effect axes payload: {path}")
+    axes = torch.as_tensor(obj["axes"], dtype=torch.float32, device=dev)
+    steps = torch.as_tensor(obj["steps"], dtype=torch.float32, device=dev)
+    z_mean = torch.as_tensor(obj["z_mean"], dtype=torch.float32, device=dev)
+    z_std = torch.as_tensor(obj["z_std"], dtype=torch.float32, device=dev).clamp_min(1e-8)
+    picked = obj.get("picked_candidate_indices", [])
+    if isinstance(picked, torch.Tensor):
+        picked = [int(v) for v in picked.detach().cpu().tolist()]
+    else:
+        picked = [int(v) for v in list(picked)] if isinstance(picked, list) else []
+    if axes.ndim != 2 or steps.ndim != 1 or z_mean.ndim != 1 or z_std.ndim != 1:
+        raise RuntimeError(f"Invalid effect axes tensor shapes in {path}")
+    if axes.shape[0] != steps.shape[0]:
+        raise RuntimeError(
+            f"Axis/step mismatch in {path}: axes={tuple(axes.shape)} steps={tuple(steps.shape)}"
+        )
+    if axes.shape[1] != z_mean.shape[0] or z_mean.shape[0] != z_std.shape[0]:
+        raise RuntimeError(
+            f"Latent dimension mismatch in {path}: axes={tuple(axes.shape)} z_mean={tuple(z_mean.shape)} z_std={tuple(z_std.shape)}"
+        )
+    return EffectAxesStats(
+        axes=axes,
+        steps=steps,
+        z_mean=z_mean,
+        z_std=z_std,
+        picked_indices=picked,
+        source_path=path,
+    )
 
 
 def _unwrap(x):
@@ -368,6 +434,23 @@ def _wav_bytes(w: torch.Tensor, sr: int) -> bytes:
 
 def _lerp(a: float, b: float, t: float) -> float:
     return float(a + (b - a) * t)
+
+
+def _clamp_z_stats(z: torch.Tensor, z_mean: torch.Tensor, z_std: torch.Tensor, q: float) -> torch.Tensor:
+    qq = max(0.5, float(q))
+    zn = (z - z_mean.unsqueeze(0)) / (z_std.unsqueeze(0) + 1e-8)
+    zn = torch.clamp(zn, -qq, qq)
+    return z_mean.unsqueeze(0) + zn * z_std.unsqueeze(0)
+
+
+def _clamp_delta_local(
+    z0: torch.Tensor, z1: torch.Tensor, z_std: torch.Tensor, q: float
+) -> torch.Tensor:
+    qq = max(0.5, float(q))
+    lim = qq * z_std.unsqueeze(0)
+    d = z1 - z0
+    d = torch.clamp(d, -lim, lim)
+    return z0 + d
 
 
 def _tcn_controls_from_sigma(args: argparse.Namespace, sigma: float) -> Dict[str, float]:
@@ -663,8 +746,54 @@ def _render_with_module(
     args: argparse.Namespace,
     transient_axis: Optional[AxisStats],
     transient_basis: Optional[BasisStats],
+    effect_axes: Optional[EffectAxesStats],
+    effect_axis_override: Optional[int] = None,
 ) -> torch.Tensor:
     tlat = sample.transient_lat_base
+    if args.module == "transient_effect_axes" and tlat is not None and effect_axes is not None:
+        req_idx = int(args.effect_axis_index) if effect_axis_override is None else int(effect_axis_override)
+        axis_idx = max(0, min(req_idx, int(effect_axes.axes.shape[0]) - 1))
+        t = (float(sigma) - 0.5) * 2.0
+        axis = effect_axes.axes[axis_idx].to(device=tlat.device, dtype=tlat.dtype)
+        step = float(effect_axes.steps[axis_idx].item()) * float(args.effect_step_scale)
+        z1 = tlat + (t * step) * axis.view(1, -1)
+        clamp_mode = str(args.effect_clamp_mode).lower()
+        if bool(args.effect_bypass_clamp) or clamp_mode == "none":
+            tlat = z1
+            clamp_hit_ratio = 0.0
+            clamp_type = "none"
+        elif clamp_mode == "local":
+            tlat = _clamp_delta_local(
+                z0=sample.transient_lat_base,
+                z1=z1,
+                z_std=effect_axes.z_std.to(device=tlat.device, dtype=tlat.dtype),
+                q=float(args.effect_z_clamp_q),
+            )
+            d_raw = z1 - sample.transient_lat_base
+            d_new = tlat - sample.transient_lat_base
+            clamp_hit_ratio = float(
+                ((d_raw - d_new).abs() > 1e-12).float().mean().item()
+            )
+            clamp_type = "local"
+        else:
+            tlat = _clamp_z_stats(
+                z1,
+                z_mean=effect_axes.z_mean.to(device=tlat.device, dtype=tlat.dtype),
+                z_std=effect_axes.z_std.to(device=tlat.device, dtype=tlat.dtype),
+                q=float(args.effect_z_clamp_q),
+            )
+            clamp_hit_ratio = float(((z1 - tlat).abs() > 1e-12).float().mean().item())
+            clamp_type = "global"
+        if bool(args.effect_debug):
+            dz = (tlat - sample.transient_lat_base).detach()
+            print(
+                f"[EFFECT_DEBUG] sample_idx={sample.sample_index} sigma={float(sigma):.3f} "
+                f"axis={axis_idx} step={step:.4f} "
+                f"clamp={clamp_type} clamp_hit={clamp_hit_ratio:.3f} "
+                f"dz_l2={float(dz.norm().item()):.6f} "
+                f"dz_mean_abs={float(dz.abs().mean().item()):.6f} "
+                f"dz_max_abs={float(dz.abs().max().item()):.6f}"
+            )
     if args.module == "transient_pca" and tlat is not None and transient_axis is not None:
         centered = ((float(sigma) - 0.5) * 2.0) * float(args.strength_max)
         d = centered * float(args.transient_scale) * float(transient_axis.proj_std) * transient_axis.pc1
@@ -702,6 +831,12 @@ def _render_with_module(
                 t = model.transient_synth(y, tlat)
         else:
             t = model.transient_synth(y, tlat)
+        if bool(args.effect_debug) and args.module == "transient_effect_axes":
+            tr = float(torch.sqrt(torch.mean(t * t) + 1e-8).item())
+            print(
+                f"[EFFECT_DEBUG] sample_idx={sample.sample_index} sigma={float(sigma):.3f} "
+                f"transient_rms={tr:.6f}"
+            )
         if args.module in ("tcn_controls", "tcn_internal_controls"):
             ctrl = _tcn_controls_from_sigma(args, float(sigma))
             t = _apply_tcn_controls(
@@ -717,10 +852,34 @@ def _render_with_module(
     if model.noise_synth is not None and noise is not None and (not model.transient_takes_noise):
         y = y + noise
 
+    if bool(args.solo_transient):
+        if model.transient_synth is not None and tlat is not None:
+            out = t.squeeze(0).detach().cpu().clamp(-1.0, 1.0)
+        else:
+            out = torch.zeros_like(sample.target_waveform)
+        if bool(args.effect_debug) and args.module == "transient_effect_axes":
+            yr = float(torch.sqrt(torch.mean(out * out) + 1e-8).item())
+            print(
+                f"[EFFECT_DEBUG] sample_idx={sample.sample_index} sigma={float(sigma):.3f} "
+                f"out_mode=solo_transient out_rms={yr:.6f}"
+            )
+        return out
+
+    if bool(args.effect_debug) and args.module == "transient_effect_axes":
+        yr = float(torch.sqrt(torch.mean(y * y) + 1e-8).item())
+        print(
+            f"[EFFECT_DEBUG] sample_idx={sample.sample_index} sigma={float(sigma):.3f} "
+            f"out_mode=full_mix out_rms={yr:.6f}"
+        )
+
     return y.squeeze(0).detach().cpu().clamp(-1.0, 1.0)
 
 
-def _sigma_label(args: argparse.Namespace, sigma: float) -> str:
+def _sigma_label(args: argparse.Namespace, sigma: float, effect_axis_override: Optional[int] = None) -> str:
+    if args.module == "transient_effect_axes":
+        axis_idx = int(args.effect_axis_index) if effect_axis_override is None else int(effect_axis_override)
+        t = (float(sigma) - 0.5) * 2.0
+        return f"axis={axis_idx} t={t:+.2f}"
     if args.module == "tcn_film_controls":
         z = (float(sigma) - 0.5) * 2.0
         return f"film-z={z:+.2f} ({args.film_basis})"
@@ -749,6 +908,7 @@ def main() -> None:
         choices=[
             "none",
             "transient_pca",
+            "transient_effect_axes",
             "tcn_controls",
             "tcn_internal_controls",
             "tcn_film_controls",
@@ -772,6 +932,27 @@ def main() -> None:
     p.add_argument("--axis-samples", type=int, default=256)
     p.add_argument("--strength-max", type=float, default=2.0)
     p.add_argument("--transient-scale", type=float, default=1.0)
+    p.add_argument("--effect-axes", type=str, default=None, help="Path to effect_axes.pt")
+    p.add_argument(
+        "--effect-axis",
+        type=str,
+        default=None,
+        choices=["0", "1", "both"],
+        help="Effect axis selector. Use 'both' to render two rows per sample (axis 0 and 1).",
+    )
+    p.add_argument("--effect-axis-index", type=int, default=0, help="Axis index in effect_axes.pt")
+    p.add_argument("--effect-step-scale", type=float, default=1.0, help="Multiply saved axis step by this value")
+    p.add_argument("--effect-z-clamp-q", type=float, default=2.5, help="Std clamp for z' in effect-axes mode")
+    p.add_argument(
+        "--effect-clamp-mode",
+        type=str,
+        default="local",
+        choices=["local", "global", "none"],
+        help="Clamp mode for effect-axes latent edit",
+    )
+    p.add_argument("--effect-bypass-clamp", action="store_true", help="Disable z clamp in effect-axes mode (debug)")
+    p.add_argument("--effect-debug", action="store_true", help="Print latent/output debug stats for effect-axes mode")
+    p.add_argument("--solo-transient", action="store_true", help="Render transient only (debug listening)")
     p.add_argument("--tcn-map", type=str, default="all", choices=["amount", "length", "tone", "all"])
     p.add_argument("--tcn-amount", type=float, default=1.0)
     p.add_argument("--tcn-amount-min", type=float, default=0.2)
@@ -839,6 +1020,30 @@ def main() -> None:
     dev = _device(args.device)
     model.eval().to(dev)
 
+    effect_axes = None
+    effect_axis_indices: List[int] = []
+    if args.module == "transient_effect_axes":
+        effect_axes_path = _infer_effect_axes_path(run_dir, args.effect_axes, root)
+        effect_axes = _load_effect_axes(effect_axes_path, dev)
+        if effect_axes.axes.shape[0] < 1:
+            raise RuntimeError(f"No axes found in: {effect_axes_path}")
+        axis_token = args.effect_axis if args.effect_axis is not None else str(int(args.effect_axis_index))
+        if axis_token == "both":
+            if effect_axes.axes.shape[0] < 2:
+                raise RuntimeError(
+                    f"--effect-axis both requested but num_axes={effect_axes.axes.shape[0]} < 2"
+                )
+            effect_axis_indices = [0, 1]
+        else:
+            idx = int(axis_token)
+            if idx < 0 or idx >= effect_axes.axes.shape[0]:
+                raise RuntimeError(
+                    f"Effect axis index out of range: {idx} (num_axes={effect_axes.axes.shape[0]})"
+                )
+            effect_axis_indices = [idx]
+        # Keep single-axis default path compatible with existing code.
+        args.effect_axis_index = int(effect_axis_indices[0])
+
     axis_ds = AudioWithParametersDataset(
         data_dir=str(data_dir),
         meta_file=args.meta_file,
@@ -886,7 +1091,7 @@ def main() -> None:
 
     sigmas = [float(v) for v in torch.linspace(args.sigma_min, args.sigma_max, steps=max(2, args.sigma_steps)).tolist()]
     sigma_variants = [s for s in sigmas if abs(s - 0.5) > 1e-9] or [0.0, 1.0]
-    cache: Dict[Tuple[int, float], bytes] = {}
+    cache: Dict[Tuple[int, float, int], bytes] = {}
     target_cache: Dict[int, bytes] = {}
     lock = threading.Lock()
     states: List[SampleState] = []
@@ -926,17 +1131,29 @@ def main() -> None:
             if u.path == "/":
                 rows = []
                 for sid, s in enumerate(states):
-                    sigma_cells = "".join(
-                        f"<div class='cell'><div class='lbl'>{_sigma_label(args, sg)}</div><audio controls preload='none' src='/audio?sid={sid}&kind=recon&sigma={sg:.6f}'></audio></div>"
-                        for sg in sigma_variants
-                    )
-                    rows.append(
-                        "<div class='row'>"
-                        f"<div class='meta'><div class='k'>#{sid} idx={s.sample_index}</div><div class='f'>{s.sample_filename}</div></div>"
-                        f"<div class='cell'><div class='lbl'>target</div><audio controls preload='none' src='/audio?sid={sid}&kind=target'></audio></div>"
-                        f"<div class='cell'><div class='lbl'>recon (sigma=0.50)</div><audio controls preload='none' src='/audio?sid={sid}&kind=recon'></audio></div>"
-                        f"{sigma_cells}</div>"
-                    )
+                    row_axes = effect_axis_indices if (args.module == "transient_effect_axes" and len(effect_axis_indices) > 0) else [-1]
+                    for ax in row_axes:
+                        if ax >= 0:
+                            sigma_cells = "".join(
+                                f"<div class='cell'><div class='lbl'>{_sigma_label(args, sg, effect_axis_override=ax)}</div><audio controls preload='none' src='/audio?sid={sid}&kind=recon&axis={ax}&sigma={sg:.6f}'></audio></div>"
+                                for sg in sigma_variants
+                            )
+                            recon_src = f"/audio?sid={sid}&kind=recon&axis={ax}"
+                            axis_tag = f" | axis={ax}"
+                        else:
+                            sigma_cells = "".join(
+                                f"<div class='cell'><div class='lbl'>{_sigma_label(args, sg)}</div><audio controls preload='none' src='/audio?sid={sid}&kind=recon&sigma={sg:.6f}'></audio></div>"
+                                for sg in sigma_variants
+                            )
+                            recon_src = f"/audio?sid={sid}&kind=recon"
+                            axis_tag = ""
+                        rows.append(
+                            "<div class='row'>"
+                            f"<div class='meta'><div class='k'>#{sid} idx={s.sample_index}{axis_tag}</div><div class='f'>{s.sample_filename}</div></div>"
+                            f"<div class='cell'><div class='lbl'>target</div><audio controls preload='none' src='/audio?sid={sid}&kind=target'></audio></div>"
+                            f"<div class='cell'><div class='lbl'>recon (sigma=0.50)</div><audio controls preload='none' src='{recon_src}'></audio></div>"
+                            f"{sigma_cells}</div>"
+                        )
                 html = f"""<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Recon Control</title>
 <style>body{{font-family:Arial;margin:16px}}.mono{{font-family:Consolas;font-size:12px}}.toolbar{{display:flex;gap:8px;margin-bottom:12px}}.row{{display:grid;grid-template-columns:360px repeat({2+len(sigma_variants)},240px);gap:8px;align-items:start;border:1px solid #ddd;border-radius:8px;padding:8px;margin-bottom:8px;overflow-x:auto}}.meta{{font-size:12px;line-height:1.3}}.k{{font-weight:700}}.f{{color:#333;word-break:break-all}}.cell{{display:flex;flex-direction:column;gap:4px}}.lbl{{font-size:11px;color:#555}}audio{{width:220px}}</style></head>
 <body><h3>Recon Control Live</h3><p class='mono'>module={args.module} | seed={used_seed} | recon=0.50 | sigma_variants={sigma_variants}</p><div class='toolbar'><a href='/'>Reload</a><a href='/refresh'>Refresh Samples</a></div>{''.join(rows)}</body></html>"""
@@ -950,6 +1167,7 @@ def main() -> None:
                 self.send_error(404, "not found"); return
             q = parse_qs(u.query)
             sid = int(q.get("sid", ["0"])[0]); kind = q.get("kind", ["target"])[0]; sigma = float(q.get("sigma", ["0.5"])[0])
+            axis_q = q.get("axis", [None])[0]
             with lock:
                 if sid < 0 or sid >= len(states):
                     self.send_error(404, "bad sid"); return
@@ -959,7 +1177,15 @@ def main() -> None:
                         target_cache[sid] = _wav_bytes(s.target_waveform, args.sample_rate)
                     wb = target_cache[sid]
                 else:
-                    k = (sid, round(float(sigma), 6))
+                    axis_override = -1
+                    if args.module == "transient_effect_axes" and effect_axes is not None:
+                        if axis_q is None:
+                            axis_override = int(effect_axis_indices[0]) if len(effect_axis_indices) > 0 else int(args.effect_axis_index)
+                        else:
+                            axis_override = int(axis_q)
+                        if axis_override < 0 or axis_override >= int(effect_axes.axes.shape[0]):
+                            self.send_error(404, "bad axis"); return
+                    k = (sid, round(float(sigma), 6), int(axis_override))
                     if k not in cache:
                         y = _render_with_module(
                             model=model,
@@ -968,6 +1194,8 @@ def main() -> None:
                             args=args,
                             transient_axis=taxis,
                             transient_basis=tbasis,
+                            effect_axes=effect_axes,
+                            effect_axis_override=(None if axis_override < 0 else axis_override),
                         )
                         cache[k] = _wav_bytes(y, args.sample_rate)
                         if len(cache) > 256:
@@ -979,6 +1207,13 @@ def main() -> None:
     print(f"[INFO] config={cfg}")
     print(f"[INFO] ckpt={ckpt}")
     print(f"[INFO] data_dir={data_dir}")
+    if effect_axes is not None:
+        print(
+            f"[INFO] effect_axes={effect_axes.source_path} | num_axes={effect_axes.axes.shape[0]} "
+            f"| axes={effect_axis_indices} | step_scale={args.effect_step_scale}"
+        )
+        if effect_axes.picked_indices:
+            print(f"[INFO] picked_candidate_indices={effect_axes.picked_indices}")
     print(f"[OK] live server: http://{args.host}:{args.port}/")
     ThreadingHTTPServer((args.host, args.port), H).serve_forever()
 
