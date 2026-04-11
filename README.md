@@ -18,14 +18,26 @@
 Differentiable digital signal processing (DDSP) techniques, including methods for audio synthesis, have gained attention in recent years and lend themselves to interpretability in the parameter space. However, current differentiable synthesis methods have not explicitly sought to model the transient portion of signals, which is important for percussive sounds. In this work, we present a unified synthesis framework aiming to address transient generation and percussive synthesis within a DDSP framework. To this end, we propose a model for percussive synthesis that builds on sinusoidal modeling synthesis and incorporates a modulated temporal convolutional network for transient generation. We use a modified sinusoidal peak picking algorithm to generate time-varying non-harmonic sinusoids and pair it with differentiable noise and transient encoders that are jointly trained to reconstruct drumset sounds. We compute a set of reconstruction metrics using a large dataset of acoustic and electronic percussion samples that show that our method leads to improved onset signal reconstruction for membranophone percussion instruments.
 
 ## Install
-Clone the repo and then install the `drumblender` package. Requires Python version 3.9 or greater.
+Clone the repo and then install the `drumblender` package.
+
+For current training on Linux x86_64 with Python 3.10 and an RTX 5090 / CUDA 12.8 stack, use the repository's one-command environment install:
 
 ```bash
-pip install --upgrade pip
-pip install -e ".[modal]"
+uv venv drmblndr --python 3.10.12
+source drmblndr/bin/activate
+uv pip install -r train-packages.txt
 ```
 
-If you don't need to run modal extraction on audio, for example, if using a pre-processed dataset for training. You can exclude the optional modal requirements. The difference is that `modal` includes `nn-audio` which depends on an older version of `numpy`.
+This replaces the older multi-step sequence with manual `pip`, `wandb`, and `torchvision` installs.
+
+If you are using a traditional virtualenv with `pip` already available, the same dependency set can be installed with:
+
+```bash
+pip install -r train-packages.txt
+```
+
+For lightweight local development without the full training stack:
+
 ```bash
 pip install -e .
 ```
