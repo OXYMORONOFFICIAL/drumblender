@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools==80.9.0", "wheel>=0.46.3", "packaging>=24"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
@@ -8,20 +8,25 @@ packages = ["drumblender"]
 [project]
 name = "drumblender"
 version = "0.0.1"
-requires-python = ">=3.9"
+requires-python = ">=3.10,<3.13"
 dependencies = [
-    "auraloss",
-    "boto3",
-    "einops",
-    "numpy",
-    "pandas",
-    "python-dotenv",
-    "pytorch_lightning[extra] ~= 1.9.0",
-    "soundfile",
-    "torch ~= 1.13",
-    "torchaudio ~= 0.13",
-    "tqdm",
-    "wandb",
+    "auraloss==0.3.0",
+    "boto3>=1.26,<2",
+    "einops>=0.6,<1",
+    "jsonargparse[signatures]>=4.20,<5",
+    "lightning-utilities==0.8.0",
+    "numpy==1.26.4",
+    "pandas==2.2.3",
+    "python-dotenv>=1.0,<2",
+    "pytorch-lightning==1.9.5",
+    "PyYAML>=6,<7",
+    "soundfile>=0.12,<1",
+    "torch==2.7.1",
+    "torchaudio==2.7.1",
+    "torchmetrics==0.11.4",
+    "torchvision==0.22.1",
+    "tqdm>=4.66,<5",
+    "wandb>=0.19,<1",
 ]
 
 [project.scripts]
@@ -31,4 +36,4 @@ drumblender-synth = "drumblender.cli:inference"
 
 [project.optional-dependencies]
 dev = ["black", "flake8", "pytest", "pytest-mock", "pyfakefs", "pre-commit", "pytest-cov"]
-modal = ["nnAudio", "numpy<1.24"]
+modal = ["nnAudio>=0.3,<1"]
