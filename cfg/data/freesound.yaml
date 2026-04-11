@@ -21,7 +21,7 @@ init_args:
   diff_threshold: 5.0
   save_modal_audio: false
   dataset_kwargs:
-    seed: 5152845
+    seed: 20020420
     parameter_key: feature_file
     split_strategy: random
     expected_num_modes: 64

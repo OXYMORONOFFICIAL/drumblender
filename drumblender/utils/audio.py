@@ -30,9 +30,9 @@ def preprocess_audio_file(
 
     # --- tail cut (옵션) ---
     remove_end_silence: bool = True,  # ✅ 가변길이 + 14초 제한이면 기본 OFF 권장
-    tail_silence_threshold_db: float = -60.0,
+    tail_silence_threshold_db: float = -70.0,
     tail_fade_out_ms: float = 5.0,
-    tail_peak_ratio: float = 0.02,
+    tail_peak_ratio: float = 0.001,
     min_tail_silence_ms: float = 50.0,
 
     # --- frame params ---

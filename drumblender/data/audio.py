@@ -345,6 +345,7 @@ class AudioWithParametersDataset(Dataset):
         normalize: bool = False,
         sample_types: Optional[List[str]] = None,
         instruments: Optional[List[str]] = None,
+        sample_pack_keys: Optional[List[str]] = None,
         parameter_key: str = "feature_file",
         expected_num_modes: Optional[int] = None,
         split_train_ratio: float = 0.8,
@@ -361,6 +362,7 @@ class AudioWithParametersDataset(Dataset):
         self.normalize = normalize
         self.sample_types = sample_types
         self.instruments = instruments
+        self.sample_pack_keys = sample_pack_keys
         self.parameter_key = parameter_key
         self.expected_num_modes = expected_num_modes
         self.split_train_ratio = split_train_ratio
@@ -390,6 +392,13 @@ class AudioWithParametersDataset(Dataset):
                     "instrument" in self.metadata[k]
                     and self.metadata[k]["instrument"] in instruments
                 )
+            ]
+        if sample_pack_keys is not None:
+            allowed_pack_keys = set(sample_pack_keys)
+            self.file_list = [
+                k
+                for k in self.file_list
+                if self.metadata[k].get("sample_pack_key") in allowed_pack_keys
             ]
 
         # HIGHLIGHT: Train/val/test split is now created at dataset-load time

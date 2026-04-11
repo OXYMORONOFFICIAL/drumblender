@@ -1,14 +1,11 @@
 class_path: drumblender.data.ModalDataModule
 init_args:
-  batch_size: 8
+  batch_size: 12
   num_workers: 8
   dataset_class: drumblender.data.AudioWithParametersDataset
-  url: https://d5d740b2d880827ae0c8f465bf180715.r2.cloudflarestorage.com
-  archive: drumblender-percussion-dataset-v1.tar.gz
-  bucket: drum-dataset
-  data_dir: dataset/percussion
-  data_dir_unprocessed: dataset-unprocessed/percussion-dataset
-  meta_file: percussion_metadata.json
+  data_dir: ../datasets/modal_features/processed_modal_flat
+  data_dir_unprocessed: ../datasets/processed
+  meta_file: metadata.json
   sample_rate: 48000
   skip_prepare_data: true
   num_samples: null
@@ -26,6 +23,5 @@ init_args:
     parameter_key: feature_file
     split_strategy: sample_pack
     expected_num_modes: 64
-    instruments:
-      - hihat
-      - cymbals
+    sample_pack_keys:
+      - IndieDrums
