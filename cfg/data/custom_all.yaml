@@ -1,7 +1,7 @@
 class_path: drumblender.data.ModalDataModule
 init_args:
   batch_size: 3
-  num_workers: 8
+  num_workers: 12
   dataset_class: drumblender.data.AudioWithParametersDataset
   data_dir: ../datasets/modal_features/processed_modal_flat
   data_dir_unprocessed: ../datasets/processed

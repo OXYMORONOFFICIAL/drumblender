@@ -35,7 +35,7 @@ trainer:
   accelerator: gpu
   # ### HIGHLIGHT: Stop runaway training by default; use scripts to override when needed.
   max_epochs: 75
-  accumulate_grad_batches: 4
+  accumulate_grad_batches: 6
   # logger:
   #   class_path: pytorch_lightning.loggers.WandbLogger
   #   init_args:
