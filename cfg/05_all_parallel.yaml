@@ -51,7 +51,7 @@ trainer:
     - class_path: pytorch_lightning.callbacks.early_stopping.EarlyStopping
       init_args:
         monitor: validation/loss_epoch
-        patience: 9
+        patience: 10
         min_delta: 0.01
         check_finite: true
         # ### HIGHLIGHT: Count patience at epoch boundaries even when validation runs multiple times per epoch.

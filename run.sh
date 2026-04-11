@@ -13,6 +13,7 @@ RUN_LOG_FILE="${RUN_LOG_DIR}/train.log"
 LIGHTNING_DIR="${RUN_LOG_DIR}/lightning"
 
 CKPT_PATH="${CKPT_PATH:-}"
+LR="${LR:-}"
 
 mkdir -p "$WANDB_DIR" "$RUN_LOG_DIR" "$LIGHTNING_DIR"
 
@@ -30,6 +31,13 @@ if [[ -n "$CKPT_PATH" ]]; then
   CMD+=(--ckpt_path "$CKPT_PATH")
 fi
 
+if [[ -n "$LR" ]]; then
+  CMD+=(--optimizer.init_args.lr "$LR")
+fi
+
 printf '[run.sh] log file: %s\n' "$RUN_LOG_FILE"
 printf '[run.sh] wandb name: %s\n' "$WANDB_NAME"
+if [[ -n "$LR" ]]; then
+  printf '[run.sh] lr override: %s\n' "$LR"
+fi
 "${CMD[@]}" 2>&1 | tee -a "$RUN_LOG_FILE"
