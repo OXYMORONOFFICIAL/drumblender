@@ -34,11 +34,14 @@ LOG_DIR="${LOG_DIR:-$REPO_ROOT/logs/train}"
 RUN_LOG_DIR="${LOG_DIR}/${WANDB_NAME}"
 RUN_LOG_FILE="${RUN_LOG_DIR}/train.log"
 LIGHTNING_DIR="${RUN_LOG_DIR}/lightning"
+CKPT_ROOT="${CKPT_ROOT:-$REPO_ROOT/ckpt}"
+RUN_CKPT_DIR="${CKPT_ROOT}/${WANDB_NAME}"
+RUN_CKPT_FILENAME="${WANDB_NAME}-epoch{epoch:03d}-step{step:08d}"
 
 CKPT_PATH="${CKPT_PATH:-}"
 LR="${LR:-}"
 
-mkdir -p "$WANDB_DIR" "$RUN_LOG_DIR" "$LIGHTNING_DIR"
+mkdir -p "$WANDB_DIR" "$RUN_LOG_DIR" "$LIGHTNING_DIR" "$RUN_CKPT_DIR"
 
 CMD=(
   drumblender fit -c "$CFG_PATH"
@@ -48,6 +51,8 @@ CMD=(
   --trainer.logger.init_args.name "$WANDB_NAME"
   --trainer.logger.init_args.save_dir "$WANDB_DIR"
   --trainer.logger.init_args.log_model false
+  --trainer.callbacks.1.init_args.dirpath "$RUN_CKPT_DIR"
+  --trainer.callbacks.1.init_args.filename "$RUN_CKPT_FILENAME"
 )
 
 if [[ -n "$CKPT_PATH" ]]; then
@@ -60,6 +65,7 @@ fi
 
 printf '[run.sh] log file: %s\n' "$RUN_LOG_FILE"
 printf '[run.sh] wandb name: %s\n' "$WANDB_NAME"
+printf '[run.sh] ckpt dir: %s\n' "$RUN_CKPT_DIR"
 if [[ -n "$LR" ]]; then
   printf '[run.sh] lr override: %s\n' "$LR"
 fi
