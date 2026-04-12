@@ -4,7 +4,6 @@ Helpers for loss functions.
 from abc import ABC
 from abc import abstractmethod
 from typing import Callable
-from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Union
@@ -88,7 +87,6 @@ class _LengthAwareMRSTFTAuxLoss(torch.nn.Module, ABC):
     def __init__(self, mrstft: Optional[torch.nn.Module] = None):
         super().__init__()
         self.mrstft = mrstft if mrstft is not None else _build_default_mrstft_loss()
-        self.last_stats: Dict[str, torch.Tensor] = {}
 
     @staticmethod
     def _normalize_lengths(
@@ -146,13 +144,6 @@ class _LengthAwareMRSTFTAuxLoss(torch.nn.Module, ABC):
         Scalar auxiliary weight used in the total loss.
         """
 
-    @property
-    @abstractmethod
-    def aux_stat_key(self) -> str:
-        """
-        Stats key used for logging the auxiliary term.
-        """
-
     @abstractmethod
     def _compute_aux_loss_batch(
         self,
@@ -203,13 +194,7 @@ class _LengthAwareMRSTFTAuxLoss(torch.nn.Module, ABC):
             mrstft_loss = torch.stack(mrstft_losses).mean()
             aux_loss = torch.stack(aux_losses).mean()
 
-        total_loss = mrstft_loss + (self.aux_weight * aux_loss)
-        self.last_stats = {
-            "loss_total": total_loss.detach(),
-            "loss_mrstft": mrstft_loss.detach(),
-            self.aux_stat_key: aux_loss.detach(),
-        }
-        return total_loss
+        return mrstft_loss + (self.aux_weight * aux_loss)
 
 
 class MRSTFTWithLogRMSAuxLoss(_LengthAwareMRSTFTAuxLoss):
@@ -230,10 +215,6 @@ class MRSTFTWithLogRMSAuxLoss(_LengthAwareMRSTFTAuxLoss):
     @property
     def aux_weight(self) -> float:
         return self.amp_weight
-
-    @property
-    def aux_stat_key(self) -> str:
-        return "loss_aux_amp"
 
     def _compute_aux_loss_batch(
         self,
@@ -276,10 +257,6 @@ class MRSTFTWithSmoothL1AuxLoss(_LengthAwareMRSTFTAuxLoss):
     @property
     def aux_weight(self) -> float:
         return self.smooth_l1_weight
-
-    @property
-    def aux_stat_key(self) -> str:
-        return "loss_aux_smoothl1"
 
     def _compute_aux_loss_batch(
         self,

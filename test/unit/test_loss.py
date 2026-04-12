@@ -75,22 +75,16 @@ def test_weighted_loss_with_jsonargparse_config(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    ("loss_fn", "weight_attr"),
+    "loss_fn",
     [
-        (
-            loss.MRSTFTWithLogRMSAuxLoss(amp_weight=0.0, mrstft=torch.nn.L1Loss()),
-            "loss_aux_amp",
-        ),
-        (
-            loss.MRSTFTWithSmoothL1AuxLoss(
-                smooth_l1_weight=0.0,
-                mrstft=torch.nn.L1Loss(),
-            ),
-            "loss_aux_smoothl1",
+        loss.MRSTFTWithLogRMSAuxLoss(amp_weight=0.0, mrstft=torch.nn.L1Loss()),
+        loss.MRSTFTWithSmoothL1AuxLoss(
+            smooth_l1_weight=0.0,
+            mrstft=torch.nn.L1Loss(),
         ),
     ],
 )
-def test_mrstft_aux_losses_match_plain_baseline_when_weight_zero(loss_fn, weight_attr):
+def test_mrstft_aux_losses_match_plain_baseline_when_weight_zero(loss_fn):
     pred = torch.tensor([[[1.0, -1.0, 0.5, 0.0]]], dtype=torch.float32)
     target = torch.tensor([[[0.0, -0.5, 0.25, 0.25]]], dtype=torch.float32)
 
@@ -98,7 +92,6 @@ def test_mrstft_aux_losses_match_plain_baseline_when_weight_zero(loss_fn, weight
     actual = loss_fn(pred, target)
 
     torch.testing.assert_close(actual, baseline)
-    assert set(loss_fn.last_stats) == {"loss_total", "loss_mrstft", weight_attr}
 
 
 @pytest.mark.parametrize(
