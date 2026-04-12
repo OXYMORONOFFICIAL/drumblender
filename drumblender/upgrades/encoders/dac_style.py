@@ -252,3 +252,65 @@ class DACStyleAttentionEncoder(nn.Module):
         x = self.pooling(x)
         return x
 
+
+class DACStyleSequenceEncoder(nn.Module):
+    """
+    DAC-style waveform encoder with a lightweight temporal LSTM tail.
+
+    This variant is intended for frame-wise outputs such as the noise parameter path.
+    It preserves the existing DAC convolutional backbone and only adds temporal
+    modeling after the stride-128 frame sequence has already been formed.
+    """
+
+    def __init__(
+        self,
+        input_channels: int,
+        hidden_channels: int,
+        output_channels: int,
+        kernel_size: int = 7,
+        strides: tuple[int, ...] = (2, 2, 4, 8),
+        causal: bool = False,
+        film_conditioning: bool = False,
+        film_embedding_size: int = 128,
+        film_batch_norm: bool = False,
+        transpose_output: bool = False,
+        use_weight_norm: bool = True,
+        lstm_hidden_size: int = 256,
+        lstm_layers: int = 2,
+        lstm_dropout: float = 0.0,
+    ):
+        super().__init__()
+        self.encoder = DACStyleEncoder(
+            input_channels=input_channels,
+            hidden_channels=hidden_channels,
+            output_channels=output_channels,
+            kernel_size=kernel_size,
+            strides=strides,
+            causal=causal,
+            film_conditioning=film_conditioning,
+            film_embedding_size=film_embedding_size,
+            film_batch_norm=film_batch_norm,
+            transpose_output=True,
+            use_weight_norm=use_weight_norm,
+        )
+        self.temporal = nn.LSTM(
+            input_size=output_channels,
+            hidden_size=lstm_hidden_size,
+            num_layers=lstm_layers,
+            dropout=lstm_dropout if lstm_layers > 1 else 0.0,
+            batch_first=True,
+            bidirectional=False,
+        )
+        self.proj = nn.Linear(lstm_hidden_size, output_channels)
+        self.transpose_output = transpose_output
+
+    def forward(
+        self, x: torch.Tensor, film_embedding: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        x = self.encoder(x, film_embedding)
+        x, _ = self.temporal(x)
+        x = self.proj(x)
+
+        if not self.transpose_output:
+            x = rearrange(x, "b t c -> b c t")
+        return x

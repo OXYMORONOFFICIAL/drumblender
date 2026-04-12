@@ -97,6 +97,46 @@ def test_mrstft_aux_losses_match_plain_baseline_when_weight_zero(loss_fn):
 @pytest.mark.parametrize(
     "loss_fn",
     [
+        loss.MRSTFTWithLogRMSAuxLoss(amp_weight=0.0, mrstft=torch.nn.L1Loss()),
+        loss.MRSTFTWithSmoothL1AuxLoss(
+            smooth_l1_weight=0.0,
+            mrstft=torch.nn.L1Loss(),
+        ),
+    ],
+)
+def test_mrstft_aux_losses_match_masked_full_length_baseline_for_variable_length(loss_fn):
+    pred = torch.tensor(
+        [
+            [[1.0, 2.0, 3.0, 50.0]],
+            [[4.0, 5.0, 6.0, 7.0]],
+        ],
+        dtype=torch.float32,
+    )
+    target = torch.tensor(
+        [
+            [[1.5, 2.5, 3.5, -50.0]],
+            [[3.5, 4.5, 5.5, 6.5]],
+        ],
+        dtype=torch.float32,
+    )
+    lengths = torch.tensor([3, 4], dtype=torch.long)
+    mask = torch.tensor(
+        [
+            [[1.0, 1.0, 1.0, 0.0]],
+            [[1.0, 1.0, 1.0, 1.0]],
+        ],
+        dtype=torch.float32,
+    )
+
+    baseline = torch.nn.L1Loss()(pred * mask, target * mask)
+    actual = loss_fn(pred, target, lengths=lengths)
+
+    torch.testing.assert_close(actual, baseline)
+
+
+@pytest.mark.parametrize(
+    "loss_fn",
+    [
         loss.MRSTFTWithLogRMSAuxLoss(amp_weight=0.01, mrstft=torch.nn.L1Loss()),
         loss.MRSTFTWithSmoothL1AuxLoss(
             smooth_l1_weight=0.02,

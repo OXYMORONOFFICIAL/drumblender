@@ -119,6 +119,18 @@ class _LengthAwareMRSTFTAuxLoss(torch.nn.Module, ABC):
         return bool(torch.all(lengths == lengths[0]).item())
 
     @staticmethod
+    def _make_time_mask(
+        lengths: torch.Tensor,
+        *,
+        total_length: int,
+        device: torch.device,
+        dtype: torch.dtype,
+    ) -> torch.Tensor:
+        timeline = torch.arange(total_length, device=device).unsqueeze(0)
+        mask = (timeline < lengths.unsqueeze(1)).to(dtype)
+        return mask.unsqueeze(1)
+
+    @staticmethod
     def _iter_valid_pairs(
         pred: torch.Tensor,
         target: torch.Tensor,
@@ -178,20 +190,32 @@ class _LengthAwareMRSTFTAuxLoss(torch.nn.Module, ABC):
             device=pred.device,
         )
 
+        # Keep the spectral term identical to the plain baseline:
+        # padded tails are zero-masked, but the loss still sees the full padded batch.
+        if lengths is None:
+            pred_masked = pred
+            target_masked = target
+        else:
+            mask = self._make_time_mask(
+                lengths,
+                total_length=pred.shape[-1],
+                device=pred.device,
+                dtype=pred.dtype,
+            )
+            pred_masked = pred * mask
+            target_masked = target * mask
+
+        mrstft_loss = self.mrstft(pred_masked, target_masked)
+
         if self._is_uniform_length(lengths):
             valid_length = pred.shape[-1] if lengths is None else int(lengths[0].item())
             pred_valid = pred[..., :valid_length]
             target_valid = target[..., :valid_length]
-            mrstft_loss = self.mrstft(pred_valid, target_valid)
             aux_loss = self._compute_aux_loss_batch(pred_valid, target_valid)
         else:
-            mrstft_losses = []
             aux_losses = []
             for pred_i, target_i in self._iter_valid_pairs(pred, target, lengths):
-                mrstft_losses.append(self.mrstft(pred_i, target_i))
                 aux_losses.append(self._compute_aux_loss_single(pred_i, target_i))
-
-            mrstft_loss = torch.stack(mrstft_losses).mean()
             aux_loss = torch.stack(aux_losses).mean()
 
         return mrstft_loss + (self.aux_weight * aux_loss)

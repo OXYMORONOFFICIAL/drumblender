@@ -534,14 +534,14 @@ def parse_args() -> argparse.Namespace:
         "--noise-encoder-backbone",
         type=str,
         default="soundstream",
-        choices=["soundstream", "dac", "hybrid", "apcodec", "discodec"],
+        choices=["soundstream", "dac", "hybrid", "apcodec"],
         help="Noise encoder backbone override.",
     )
     parser.add_argument(
         "--transient-encoder-backbone",
         type=str,
         default="soundstream",
-        choices=["soundstream", "dac", "hybrid", "apcodec", "discodec"],
+        choices=["soundstream", "dac", "hybrid", "apcodec"],
         help="Transient encoder backbone override.",
     )
     parser.add_argument(

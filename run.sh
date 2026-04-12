@@ -6,6 +6,7 @@ CFG_PATH="${CFG_PATH:-cfg/05_all_parallel.yaml}"
 cd "$REPO_ROOT" || exit 1
 
 LOSS_MODE="${1:-plain}"
+NOISE_ENCODER_MODE="${2:-baseline}"
 
 case "$LOSS_MODE" in
   plain|baseline|off)
@@ -25,13 +26,32 @@ case "$LOSS_MODE" in
     LOSS_CFG_PATH="$REPO_ROOT/cfg/loss/safe_mss.yaml"
     ;;
   *)
-    printf 'usage: bash run.sh [plain|amp|smooth|si|legacy_si]\n' >&2
+    printf 'usage: bash run.sh [plain|amp|smooth|si|legacy_si] [baseline|dac|dac_lstm]\n' >&2
+    exit 1
+    ;;
+esac
+
+case "$NOISE_ENCODER_MODE" in
+  baseline|soundstream|off)
+    NOISE_RUN_TAG=""
+    NOISE_ENCODER_CFG_PATH=""
+    ;;
+  dac)
+    NOISE_RUN_TAG="NOISEDAC_"
+    NOISE_ENCODER_CFG_PATH="$REPO_ROOT/cfg/upgrades/encoders/noise_dac_style.yaml"
+    ;;
+  dac_lstm|daclstm|sequence)
+    NOISE_RUN_TAG="NOISEDACLSTM_"
+    NOISE_ENCODER_CFG_PATH="$REPO_ROOT/cfg/upgrades/encoders/noise_dac_lstm_style.yaml"
+    ;;
+  *)
+    printf 'usage: bash run.sh [plain|amp|smooth|si|legacy_si] [baseline|dac|dac_lstm]\n' >&2
     exit 1
     ;;
 esac
 
 WANDB_PROJECT="${WANDB_PROJECT:-drumblender}"
-WANDB_NAME="${WANDB_NAME:-${RUN_PREFIX}$(date +%Y%m%d_%H%M%S)}"
+WANDB_NAME="${WANDB_NAME:-${RUN_PREFIX}${NOISE_RUN_TAG}$(date +%Y%m%d_%H%M%S)}"
 WANDB_DIR="${WANDB_DIR:-$REPO_ROOT/logs/wandb}"
 LOG_DIR="${LOG_DIR:-$REPO_ROOT/logs/train}"
 RUN_LOG_DIR="${LOG_DIR}/${WANDB_NAME}"
@@ -43,6 +63,11 @@ CKPT_PATH="${CKPT_PATH:-}"
 LR="${LR:-}"
 
 mkdir -p "$WANDB_DIR" "$RUN_LOG_DIR" "$LIGHTNING_DIR" "$RUN_CKPT_DIR"
+
+if [[ -n "$NOISE_ENCODER_CFG_PATH" && ! -f "$NOISE_ENCODER_CFG_PATH" ]]; then
+  printf 'noise encoder config not found: %s\n' "$NOISE_ENCODER_CFG_PATH" >&2
+  exit 1
+fi
 
 CMD=(
   drumblender fit -c "$CFG_PATH"
@@ -63,10 +88,21 @@ if [[ -n "$LR" ]]; then
   CMD+=(--optimizer.init_args.lr "$LR")
 fi
 
+if [[ -n "$NOISE_ENCODER_CFG_PATH" ]]; then
+  CMD+=(
+    --model.init_args.noise_autoencoder "$NOISE_ENCODER_CFG_PATH"
+    --model.init_args.noise_autoencoder_accepts_audio true
+  )
+fi
+
 printf '[run.sh] log file: %s\n' "$RUN_LOG_FILE"
 printf '[run.sh] wandb name: %s\n' "$WANDB_NAME"
 printf '[run.sh] loss mode: %s\n' "$LOSS_MODE"
 printf '[run.sh] loss cfg: %s\n' "$LOSS_CFG_PATH"
+printf '[run.sh] noise encoder mode: %s\n' "$NOISE_ENCODER_MODE"
+if [[ -n "$NOISE_ENCODER_CFG_PATH" ]]; then
+  printf '[run.sh] noise encoder cfg: %s\n' "$NOISE_ENCODER_CFG_PATH"
+fi
 printf '[run.sh] ckpt dir: %s\n' "$RUN_CKPT_DIR"
 if [[ -n "$LR" ]]; then
   printf '[run.sh] lr override: %s\n' "$LR"
