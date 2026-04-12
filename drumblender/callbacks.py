@@ -14,6 +14,7 @@ import pytorch_lightning as pl
 import torch
 import torchaudio
 from pytorch_lightning.callbacks import Callback
+from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.cli import SaveConfigCallback
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.loggers import WandbLogger
@@ -331,6 +332,57 @@ class LogAudioCallback(Callback):
             except Exception:
                 pass
             logger.experiment.log({f"{split_key}/audio": audio}, step=step)
+
+
+class RunNameModelCheckpoint(ModelCheckpoint):
+    """Store checkpoints under a run-specific subdirectory and prefix filenames."""
+
+    @staticmethod
+    def _resolve_run_name(trainer: pl.Trainer) -> str:
+        logger = getattr(trainer, "logger", None)
+
+        candidates = []
+        if logger is not None:
+            candidates.append(getattr(logger, "name", None))
+            experiment = getattr(logger, "experiment", None)
+            candidates.append(getattr(experiment, "name", None))
+
+        candidates.append(os.getenv("WANDB_NAME"))
+
+        for value in candidates:
+            if isinstance(value, str):
+                value = value.strip()
+                if value:
+                    return value
+
+        return ""
+
+    def setup(
+        self,
+        trainer: pl.Trainer,
+        pl_module: pl.LightningModule,
+        stage: str,
+    ) -> None:
+        super().setup(trainer, pl_module, stage)
+
+        run_name = self._resolve_run_name(trainer)
+        if not run_name:
+            return
+
+        base_dir = self.dirpath or "checkpoints"
+        if os.path.basename(os.path.normpath(base_dir)) != run_name:
+            self.dirpath = os.path.join(base_dir, run_name)
+        else:
+            self.dirpath = base_dir
+
+        filename = self.filename or "epoch{epoch:03d}-step{step:08d}"
+        prefix = f"{run_name}-"
+        if not filename.startswith(prefix):
+            self.filename = f"{prefix}{filename}"
+        else:
+            self.filename = filename
+
+        os.makedirs(self.dirpath, exist_ok=True)
 
 
 class CleanWandbCacheCallback(pl.Callback):
