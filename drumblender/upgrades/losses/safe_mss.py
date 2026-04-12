@@ -143,6 +143,150 @@ class SafeScaleInvariantMSSLoss(nn.Module):
             gate = gate.detach()
         return gate
 
+    @staticmethod
+    def _per_sample_reduce(value: torch.Tensor) -> torch.Tensor:
+        if value.ndim <= 1:
+            return value
+        return value.reshape(value.shape[0], -1).mean(dim=1)
+
+    def _mag_distance_per_sample(
+        self,
+        pred_mag: torch.Tensor,
+        target_mag: torch.Tensor,
+        *,
+        log_scale: bool,
+        distance: str,
+        log_eps: float,
+        log_fac: float,
+    ) -> torch.Tensor:
+        if log_scale:
+            pred_mag = torch.log(log_fac * pred_mag + log_eps)
+            target_mag = torch.log(log_fac * target_mag + log_eps)
+
+        if distance == "L1":
+            diff = (pred_mag - target_mag).abs()
+        elif distance == "L2":
+            diff = (pred_mag - target_mag).pow(2)
+        else:
+            raise ValueError(f"Unsupported STFT magnitude distance: {distance}")
+
+        return self._per_sample_reduce(diff)
+
+    def _stft_loss_per_sample(
+        self,
+        stft_loss: nn.Module,
+        pred: torch.Tensor,
+        target: torch.Tensor,
+    ) -> Optional[torch.Tensor]:
+        """Mirror auraloss STFTLoss, but keep one scalar per batch item."""
+        required_attrs = [
+            "window",
+            "stft",
+            "w_sc",
+            "w_log_mag",
+            "w_lin_mag",
+            "w_phs",
+            "eps",
+            "mag_distance",
+            "scale_invariance",
+            "perceptual_weighting",
+            "scale",
+        ]
+        if any(not hasattr(stft_loss, attr) for attr in required_attrs):
+            return None
+
+        bs, chs, _ = pred.shape
+        pred_work = pred
+        target_work = target
+        stft_eps = float(getattr(stft_loss, "eps", self.eps))
+
+        if getattr(stft_loss, "perceptual_weighting", False):
+            prefilter = getattr(stft_loss, "prefilter", None)
+            if prefilter is None:
+                return None
+            pred_work = pred_work.reshape(bs * chs, 1, -1)
+            target_work = target_work.reshape(bs * chs, 1, -1)
+            prefilter.to(pred_work.device)
+            pred_work, target_work = prefilter(pred_work, target_work)
+            pred_work = pred_work.reshape(bs, chs, -1)
+            target_work = target_work.reshape(bs, chs, -1)
+
+        stft_loss.window = stft_loss.window.to(device=pred_work.device, dtype=pred_work.dtype)
+        pred_mag, pred_phs = stft_loss.stft(pred_work.reshape(-1, pred_work.size(-1)))
+        target_mag, target_phs = stft_loss.stft(target_work.reshape(-1, target_work.size(-1)))
+
+        if getattr(stft_loss, "scale", None) is not None:
+            if not hasattr(stft_loss, "fb"):
+                return None
+            stft_loss.fb = stft_loss.fb.to(device=pred_work.device, dtype=pred_mag.dtype)
+            pred_mag = torch.matmul(stft_loss.fb, pred_mag)
+            target_mag = torch.matmul(stft_loss.fb, target_mag)
+
+        if getattr(stft_loss, "scale_invariance", False):
+            denom = target_mag.pow(2).sum(dim=(-2, -1)).clamp_min(stft_eps)
+            alpha = (pred_mag * target_mag).sum(dim=(-2, -1)) / denom
+            target_mag = target_mag * alpha.unsqueeze(-1)
+
+        loss_flat = pred_mag.new_zeros((pred_mag.shape[0],))
+
+        if float(getattr(stft_loss, "w_sc", 0.0)) > 0.0:
+            sc_num = torch.linalg.vector_norm(
+                (target_mag - pred_mag).reshape(pred_mag.shape[0], -1), ord=2, dim=1
+            )
+            sc_den = torch.linalg.vector_norm(
+                target_mag.reshape(target_mag.shape[0], -1), ord=2, dim=1
+            ).clamp_min(stft_eps)
+            loss_flat = loss_flat + float(stft_loss.w_sc) * (sc_num / sc_den)
+
+        if float(getattr(stft_loss, "w_log_mag", 0.0)) > 0.0:
+            log_mag = getattr(stft_loss, "logstft", None)
+            if log_mag is None:
+                return None
+            log_loss = self._mag_distance_per_sample(
+                pred_mag,
+                target_mag,
+                log_scale=True,
+                distance=str(getattr(stft_loss, "mag_distance", "L1")),
+                log_eps=float(getattr(log_mag, "log_eps", 0.0)),
+                log_fac=float(getattr(log_mag, "log_fac", 1.0)),
+            )
+            loss_flat = loss_flat + float(stft_loss.w_log_mag) * log_loss
+
+        if float(getattr(stft_loss, "w_lin_mag", 0.0)) > 0.0:
+            lin_loss = self._mag_distance_per_sample(
+                pred_mag,
+                target_mag,
+                log_scale=False,
+                distance=str(getattr(stft_loss, "mag_distance", "L1")),
+                log_eps=0.0,
+                log_fac=1.0,
+            )
+            loss_flat = loss_flat + float(stft_loss.w_lin_mag) * lin_loss
+
+        if bool(getattr(stft_loss, "phs_used", False)) and pred_phs is not None and target_phs is not None:
+            phs_loss = self._per_sample_reduce((pred_phs - target_phs).pow(2))
+            loss_flat = loss_flat + float(stft_loss.w_phs) * phs_loss
+
+        return loss_flat.reshape(bs, chs).mean(dim=1)
+
+    def _spectral_loss_per_sample(
+        self,
+        loss_module: nn.Module,
+        pred: torch.Tensor,
+        target: torch.Tensor,
+    ) -> Optional[torch.Tensor]:
+        stft_losses = getattr(loss_module, "stft_losses", None)
+        if stft_losses is not None:
+            per_resolution = []
+            for stft_loss in stft_losses:
+                loss_vec = self._stft_loss_per_sample(stft_loss, pred, target)
+                if loss_vec is None:
+                    return None
+                per_resolution.append(loss_vec)
+            return torch.stack(per_resolution, dim=0).mean(dim=0)
+
+        return self._stft_loss_per_sample(loss_module, pred, target)
+
     def _log_rms_envelope(self, signal: torch.Tensor, window_ms: float) -> torch.Tensor:
         frame = max(1, int(round(self.sample_rate * window_ms / 1000.0)))
         hop = max(1, frame // 2)
@@ -379,16 +523,29 @@ class SafeScaleInvariantMSSLoss(nn.Module):
 
         target_rms = self._masked_rms(target_masked, mask)
 
-        base_loss = self.base_mss(pred_masked, target_masked)
+        base_loss_per_sample = self._spectral_loss_per_sample(
+            self.base_mss, pred_masked, target_masked
+        )
+        base_loss = (
+            base_loss_per_sample.mean()
+            if base_loss_per_sample is not None
+            else self.base_mss(pred_masked, target_masked)
+        )
         if self.si_enabled:
             gate = self._compute_gate(target_rms)
-            gate_mix = gate.mean()
 
             norm = target_rms.clamp_min(self.si_rms_floor).view(-1, 1, 1)
             pred_si = pred_masked / norm
             target_si = target_masked / norm
-            si_loss = self.si_mss(pred_si, target_si)
-            mss_loss = (1.0 - gate_mix) * base_loss + gate_mix * si_loss
+            si_loss_per_sample = self._spectral_loss_per_sample(
+                self.si_mss, pred_si, target_si
+            )
+            if base_loss_per_sample is not None and si_loss_per_sample is not None:
+                mss_loss = ((1.0 - gate) * base_loss_per_sample + gate * si_loss_per_sample).mean()
+            else:
+                gate_mix = gate.mean()
+                si_loss = self.si_mss(pred_si, target_si)
+                mss_loss = (1.0 - gate_mix) * base_loss + gate_mix * si_loss
         else:
             mss_loss = base_loss
 
