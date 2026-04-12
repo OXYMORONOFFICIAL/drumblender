@@ -429,10 +429,95 @@ def _copy_run_context_bundle(
             _copy_path(p, extra_dir / p.name)
 
 
+def _load_data_config_args(data_config_path: str) -> tuple[Dict[str, Any], Dict[str, Any]]:
+    cfg_path = Path(data_config_path)
+    with cfg_path.open("r", encoding="utf-8") as f:
+        cfg_obj = yaml.safe_load(f)
+
+    if not isinstance(cfg_obj, dict):
+        raise RuntimeError(f"Invalid data config: {data_config_path}")
+
+    init_args = cfg_obj.get("init_args", {})
+    if not isinstance(init_args, dict):
+        raise RuntimeError(f"Invalid data config init_args: {data_config_path}")
+
+    dataset_kwargs = init_args.get("dataset_kwargs", {})
+    if dataset_kwargs is None:
+        dataset_kwargs = {}
+    if not isinstance(dataset_kwargs, dict):
+        raise RuntimeError(f"Invalid data config dataset_kwargs: {data_config_path}")
+
+    return init_args, dataset_kwargs
+
+
+def _resolve_data_args(args: argparse.Namespace) -> Dict[str, Any]:
+    init_args: Dict[str, Any] = {}
+    dataset_kwargs: Dict[str, Any] = {}
+    if args.data_config is not None:
+        init_args, dataset_kwargs = _load_data_config_args(args.data_config)
+
+    data_dir = args.data_dir if args.data_dir is not None else init_args.get("data_dir")
+    meta_file = args.meta_file if args.meta_file is not None else init_args.get("meta_file", "metadata.json")
+    sample_rate = (
+        args.sample_rate if args.sample_rate is not None else init_args.get("sample_rate")
+    )
+    num_samples = (
+        args.num_samples if args.num_samples is not None else init_args.get("num_samples")
+    )
+    split_strategy = (
+        args.split_strategy
+        if args.split_strategy is not None
+        else dataset_kwargs.get("split_strategy", "sample_pack")
+    )
+    parameter_key = (
+        args.parameter_key
+        if args.parameter_key is not None
+        else dataset_kwargs.get("parameter_key", "feature_file")
+    )
+    expected_num_modes = (
+        args.expected_num_modes
+        if args.expected_num_modes is not None
+        else dataset_kwargs.get("expected_num_modes", init_args.get("num_modes"))
+    )
+    seed = (
+        args.seed
+        if args.seed is not None
+        else dataset_kwargs.get("seed", init_args.get("seed", 42))
+    )
+    sample_pack_keys = (
+        args.sample_pack_keys
+        if args.sample_pack_keys is not None
+        else dataset_kwargs.get("sample_pack_keys")
+    )
+
+    if data_dir is None:
+        raise RuntimeError("data_dir is required. Pass --data-dir or --data-config.")
+    if sample_rate is None:
+        raise RuntimeError("sample_rate is required. Pass --sample-rate or --data-config.")
+
+    return {
+        "data_dir": data_dir,
+        "meta_file": meta_file,
+        "sample_rate": int(sample_rate),
+        "num_samples": num_samples,
+        "split_strategy": split_strategy,
+        "parameter_key": parameter_key,
+        "expected_num_modes": expected_num_modes,
+        "seed": int(seed),
+        "sample_pack_keys": sample_pack_keys,
+    }
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str, required=True, help="Model config YAML")
     parser.add_argument("--ckpt", type=str, required=True, help="Checkpoint path")
+    parser.add_argument(
+        "--data-config",
+        type=str,
+        default=None,
+        help="Optional data config YAML (e.g. cfg/data/custom_all.yaml).",
+    )
     parser.add_argument(
         "--loss-cfg",
         type=str,
@@ -471,21 +556,28 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Explicit transient encoder config path override.",
     )
-    parser.add_argument("--data-dir", type=str, required=True, help="Dataset root")
-    parser.add_argument("--meta-file", type=str, default="metadata.json")
+    parser.add_argument("--data-dir", type=str, default=None, help="Dataset root")
+    parser.add_argument("--meta-file", type=str, default=None)
     parser.add_argument("--split", type=str, default="test", choices=["train", "val", "test"])
     parser.add_argument(
-        "--split-strategy", type=str, default="sample_pack", choices=["sample_pack", "random"]
+        "--split-strategy", type=str, default=None, choices=["sample_pack", "random"]
     )
-    parser.add_argument("--parameter-key", type=str, default="feature_file")
-    parser.add_argument("--expected-num-modes", type=int, default=64)
-    parser.add_argument("--seed", type=int, default=20260218)
-    parser.add_argument("--sample-rate", type=int, default=48000)
+    parser.add_argument("--parameter-key", type=str, default=None)
+    parser.add_argument("--expected-num-modes", type=int, default=None)
+    parser.add_argument("--seed", type=int, default=None)
+    parser.add_argument("--sample-rate", type=int, default=None)
     parser.add_argument(
         "--num-samples",
         type=_optional_int,
         default=None,
         help="Fixed-length mode if set, else variable-length (use none/null)",
+    )
+    parser.add_argument(
+        "--sample-pack-key",
+        dest="sample_pack_keys",
+        action="append",
+        default=None,
+        help="Optional sample pack filter (repeatable). Overrides data-config pack filter.",
     )
     parser.add_argument(
         "--output-dir",
@@ -543,6 +635,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    data_args = _resolve_data_args(args)
 
     output_dir = Path(args.output_dir)
     recon_root = output_dir / "recon"
@@ -566,6 +659,8 @@ def main() -> None:
 
     # ### HIGHLIGHT: Keep a copy of configs used for this export.
     _copy_if_exists(Path(args.config), config_root / Path(args.config).name)
+    if args.data_config is not None:
+        _copy_if_exists(Path(args.data_config), config_root / Path(args.data_config).name)
     if is_temp_cfg:
         _copy_if_exists(model_cfg_to_load, config_root / "resolved_export_config.yaml")
     _copy_if_exists(Path(args.metrics_config), config_root / Path(args.metrics_config).name)
@@ -581,15 +676,16 @@ def main() -> None:
     )
 
     dataset = AudioWithParametersDataset(
-        data_dir=args.data_dir,
-        meta_file=args.meta_file,
-        sample_rate=args.sample_rate,
-        num_samples=args.num_samples,
+        data_dir=data_args["data_dir"],
+        meta_file=data_args["meta_file"],
+        sample_rate=data_args["sample_rate"],
+        num_samples=data_args["num_samples"],
         split=args.split,
-        split_strategy=args.split_strategy,
-        parameter_key=args.parameter_key,
-        expected_num_modes=args.expected_num_modes,
-        seed=args.seed,
+        split_strategy=data_args["split_strategy"],
+        parameter_key=data_args["parameter_key"],
+        expected_num_modes=data_args["expected_num_modes"],
+        seed=data_args["seed"],
+        sample_pack_keys=data_args["sample_pack_keys"],
     )
 
     # Instantiate evaluation metrics from YAML.
@@ -665,13 +761,13 @@ def main() -> None:
 
             recon_path = recon_root / src_rel
             recon_path.parent.mkdir(parents=True, exist_ok=True)
-            torchaudio.save(str(recon_path), recon, args.sample_rate)
+            torchaudio.save(str(recon_path), recon, data_args["sample_rate"])
 
             target_path_str = ""
             if args.save_target:
                 target_path = target_root / src_rel
                 target_path.parent.mkdir(parents=True, exist_ok=True)
-                torchaudio.save(str(target_path), target, args.sample_rate)
+                torchaudio.save(str(target_path), target, data_args["sample_rate"])
                 target_path_str = str(target_path)
 
             manifest_writer.writerow(
@@ -690,15 +786,17 @@ def main() -> None:
     summary = {
         "export_time_utc": datetime.now(timezone.utc).isoformat(),
         "config": args.config,
+        "data_config": args.data_config,
         "metrics_config": args.metrics_config,
         "ckpt": args.ckpt,
-        "data_dir": args.data_dir,
-        "meta_file": args.meta_file,
+        "data_dir": data_args["data_dir"],
+        "meta_file": data_args["meta_file"],
         "split": args.split,
-        "split_strategy": args.split_strategy,
-        "seed": args.seed,
-        "sample_rate": args.sample_rate,
-        "num_samples": args.num_samples,
+        "split_strategy": data_args["split_strategy"],
+        "seed": data_args["seed"],
+        "sample_rate": data_args["sample_rate"],
+        "num_samples": data_args["num_samples"],
+        "sample_pack_keys": data_args["sample_pack_keys"],
         "num_items": limit,
         "git": _collect_git_info(),
         "metrics": {},

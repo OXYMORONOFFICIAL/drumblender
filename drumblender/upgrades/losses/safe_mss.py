@@ -378,7 +378,6 @@ class SafeScaleInvariantMSSLoss(nn.Module):
         target_masked = target * mask
 
         target_rms = self._masked_rms(target_masked, mask)
-        pred_rms = self._masked_rms(pred_masked, mask)
 
         base_loss = self.base_mss(pred_masked, target_masked)
         if self.si_enabled:
@@ -393,12 +392,20 @@ class SafeScaleInvariantMSSLoss(nn.Module):
         else:
             mss_loss = base_loss
 
-        amp_loss = F.l1_loss(
-            torch.log(pred_rms + self.eps),
-            torch.log(target_rms + self.eps),
-        )
-        env_loss = self._envelope_anchor(pred_masked, target_masked)
+        amp_loss = pred.new_zeros(())
+        if self.amp_weight > 0.0:
+            pred_rms = self._masked_rms(pred_masked, mask)
+            amp_loss = F.l1_loss(
+                torch.log(pred_rms + self.eps),
+                torch.log(target_rms + self.eps),
+            )
 
-        prior_loss = self._physical_prior(pred_masked, target_masked, lengths=lengths)
+        env_loss = pred.new_zeros(())
+        if self.env_weight > 0.0 and len(self.envelope_windows_ms) > 0:
+            env_loss = self._envelope_anchor(pred_masked, target_masked)
+
+        prior_loss = pred.new_zeros(())
+        if self.prior_enabled:
+            prior_loss = self._physical_prior(pred_masked, target_masked, lengths=lengths)
 
         return mss_loss + self.amp_weight * amp_loss + self.env_weight * env_loss + prior_loss

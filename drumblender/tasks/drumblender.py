@@ -303,18 +303,22 @@ class DrumBlender(pl.LightningModule):
 
         y_hat = self(original, params, lengths=lengths)
 
+        original_masked = original
+        y_hat_masked = y_hat
         if lengths is not None:
             T = original.shape[-1]
             mask = self._make_time_mask(lengths, T, original.device)
-            original = original * mask
-            y_hat = y_hat * mask
+            original_masked = original * mask
+            y_hat_masked = y_hat * mask
 
         if self._loss_accepts_lengths:
+            # Let length-aware losses apply masking internally to avoid duplicating
+            # padded-tail masking work before expensive spectral losses.
             loss = self.loss_fn(y_hat, original, lengths=lengths)
         else:
-            loss = self.loss_fn(y_hat, original)
+            loss = self.loss_fn(y_hat_masked, original_masked)
         # ### HIGHLIGHT: Return the masked target for length-safe metric computation.
-        return loss, y_hat, original
+        return loss, y_hat_masked, original_masked
 
     def training_step(self, batch, batch_idx: int):
         loss, y_hat, target = self._do_step(batch)
