@@ -1,0 +1,6 @@
+class_path: drumblender.loss.MRSTFTWithSmoothL1AuxLoss
+init_args:
+  smooth_l1_weight: 0.02
+  smooth_l1_beta: 0.1
+  mrstft:
+    class_path: auraloss.freq.MultiResolutionSTFTLoss

@@ -320,6 +320,42 @@ class DrumBlender(pl.LightningModule):
         # ### HIGHLIGHT: Return the masked target for length-safe metric computation.
         return loss, y_hat_masked, original_masked
 
+    def _get_loss_stats(self):
+        stats = getattr(self.loss_fn, "last_stats", None)
+        if not isinstance(stats, dict):
+            return {}
+
+        normalized = {}
+        for name, value in stats.items():
+            if torch.is_tensor(value):
+                normalized[name] = value
+            elif isinstance(value, (float, int)):
+                normalized[name] = torch.tensor(
+                    float(value), device=self.device, dtype=torch.float32
+                )
+        return normalized
+
+    def _log_loss_stats(
+        self,
+        stage: str,
+        suffix: str,
+        *,
+        on_step: bool,
+        on_epoch: bool,
+        prog_bar: bool = False,
+        sync_dist: bool = False,
+    ) -> None:
+        for name, value in self._get_loss_stats().items():
+            self.log(
+                f"{stage}/{name}_{suffix}",
+                value,
+                on_step=on_step,
+                on_epoch=on_epoch,
+                prog_bar=prog_bar,
+                logger=True,
+                sync_dist=sync_dist,
+            )
+
     def training_step(self, batch, batch_idx: int):
         loss, y_hat, target = self._do_step(batch)
         # ### HIGHLIGHT: Log a dedicated per-step training loss for denser WandB curves.
@@ -339,6 +375,21 @@ class DrumBlender(pl.LightningModule):
             on_epoch=True,
             prog_bar=False,
             logger=True,
+            sync_dist=True,
+        )
+        self._log_loss_stats(
+            "train",
+            "step",
+            on_step=True,
+            on_epoch=False,
+            prog_bar=False,
+        )
+        self._log_loss_stats(
+            "train",
+            "epoch",
+            on_step=False,
+            on_epoch=True,
+            prog_bar=False,
             sync_dist=True,
         )
         # ### HIGHLIGHT: Return detached audio snapshots for callback-side train audio logging.
@@ -376,9 +427,21 @@ class DrumBlender(pl.LightningModule):
             logger=True,
             sync_dist=True,
         )
+        self._log_loss_stats(
+            "validation",
+            "epoch",
+            on_step=False,
+            on_epoch=True,
+            prog_bar=False,
+            sync_dist=True,
+        )
         # ### HIGHLIGHT: Align validation step-loss x-axis with training global_step in WandB
         # and rotate which validation batch is used for this step-level snapshot.
         if batch_idx == self._val_step_log_batch_idx:
+            step_stats = {
+                f"validation/{name}_step": float(value.detach().cpu())
+                for name, value in self._get_loss_stats().items()
+            }
             if isinstance(self.logger, WandbLogger):
                 if self.trainer.is_global_zero:
                     # ### HIGHLIGHT: Keep W&B step monotonic when mixing manual and Lightning logs.
@@ -391,13 +454,12 @@ class DrumBlender(pl.LightningModule):
                             step = run_step + 1
                     except Exception:
                         pass
-                    self.logger.experiment.log(
-                        {
-                            "validation/loss_step": float(loss.detach().cpu()),
-                            "validation/loss_step_batch_idx": int(batch_idx),
-                        },
-                        step=step,
-                    )
+                    payload = {
+                        "validation/loss_step": float(loss.detach().cpu()),
+                        "validation/loss_step_batch_idx": int(batch_idx),
+                    }
+                    payload.update(step_stats)
+                    self.logger.experiment.log(payload, step=step)
             else:
                 self.log(
                     "validation/loss_step",
@@ -406,6 +468,13 @@ class DrumBlender(pl.LightningModule):
                     on_epoch=False,
                     prog_bar=True,
                     logger=True,
+                )
+                self._log_loss_stats(
+                    "validation",
+                    "step",
+                    on_step=True,
+                    on_epoch=False,
+                    prog_bar=False,
                 )
 
         return loss

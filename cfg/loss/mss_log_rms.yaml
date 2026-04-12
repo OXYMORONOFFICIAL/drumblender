@@ -1,0 +1,6 @@
+class_path: drumblender.loss.MRSTFTWithLogRMSAuxLoss
+init_args:
+  amp_weight: 0.01
+  eps: 1.0e-8
+  mrstft:
+    class_path: auraloss.freq.MultiResolutionSTFTLoss

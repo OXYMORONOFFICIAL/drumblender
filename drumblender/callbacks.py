@@ -339,15 +339,31 @@ class RunNameModelCheckpoint(ModelCheckpoint):
 
     @staticmethod
     def _resolve_run_name(trainer: pl.Trainer) -> str:
-        logger = getattr(trainer, "logger", None)
+        default_root_dir = getattr(trainer, "default_root_dir", None)
+        if isinstance(default_root_dir, str):
+            default_root_dir = default_root_dir.strip()
+            if default_root_dir:
+                default_root = Path(default_root_dir).expanduser()
+                # `run.sh` pins Lightning logs under `<logs>/<run_name>/lightning`.
+                # Prefer that explicit run folder so checkpoint storage matches it.
+                if default_root.name == "lightning" and default_root.parent.name:
+                    return default_root.parent.name
 
+        env_run_name = os.getenv("WANDB_NAME", "").strip()
+        if env_run_name:
+            return env_run_name
+
+        logger = getattr(trainer, "logger", None)
         candidates = []
         if logger is not None:
-            candidates.append(getattr(logger, "name", None))
             experiment = getattr(logger, "experiment", None)
             candidates.append(getattr(experiment, "name", None))
-
-        candidates.append(os.getenv("WANDB_NAME"))
+            logger_name = getattr(logger, "name", None)
+            if not (
+                isinstance(logger, WandbLogger)
+                and logger_name == getattr(experiment, "project", None)
+            ):
+                candidates.append(logger_name)
 
         for value in candidates:
             if isinstance(value, str):

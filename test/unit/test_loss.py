@@ -72,3 +72,81 @@ def test_weighted_loss_with_jsonargparse_config(monkeypatch):
 
     actual_loss = objs.loss(a, b)
     assert actual_loss == expected_loss
+
+
+@pytest.mark.parametrize(
+    ("loss_fn", "weight_attr"),
+    [
+        (
+            loss.MRSTFTWithLogRMSAuxLoss(amp_weight=0.0, mrstft=torch.nn.L1Loss()),
+            "loss_aux_amp",
+        ),
+        (
+            loss.MRSTFTWithSmoothL1AuxLoss(
+                smooth_l1_weight=0.0,
+                mrstft=torch.nn.L1Loss(),
+            ),
+            "loss_aux_smoothl1",
+        ),
+    ],
+)
+def test_mrstft_aux_losses_match_plain_baseline_when_weight_zero(loss_fn, weight_attr):
+    pred = torch.tensor([[[1.0, -1.0, 0.5, 0.0]]], dtype=torch.float32)
+    target = torch.tensor([[[0.0, -0.5, 0.25, 0.25]]], dtype=torch.float32)
+
+    baseline = torch.nn.L1Loss()(pred, target)
+    actual = loss_fn(pred, target)
+
+    torch.testing.assert_close(actual, baseline)
+    assert set(loss_fn.last_stats) == {"loss_total", "loss_mrstft", weight_attr}
+
+
+@pytest.mark.parametrize(
+    "loss_fn",
+    [
+        loss.MRSTFTWithLogRMSAuxLoss(amp_weight=0.01, mrstft=torch.nn.L1Loss()),
+        loss.MRSTFTWithSmoothL1AuxLoss(
+            smooth_l1_weight=0.02,
+            smooth_l1_beta=0.1,
+            mrstft=torch.nn.L1Loss(),
+        ),
+    ],
+)
+def test_mrstft_aux_losses_ignore_padded_tail(loss_fn):
+    pred = torch.zeros(2, 1, 6, dtype=torch.float32)
+    target = torch.zeros(2, 1, 6, dtype=torch.float32)
+    lengths = torch.tensor([3, 6], dtype=torch.long)
+
+    pred[0, 0, 3:] = 100.0
+    target[0, 0, 3:] = -100.0
+
+    actual = loss_fn(pred, target, lengths=lengths)
+    torch.testing.assert_close(actual, torch.tensor(0.0))
+
+
+@pytest.mark.parametrize(
+    "loss_fn",
+    [
+        loss.MRSTFTWithLogRMSAuxLoss(amp_weight=0.01, mrstft=torch.nn.L1Loss()),
+        loss.MRSTFTWithSmoothL1AuxLoss(
+            smooth_l1_weight=0.02,
+            smooth_l1_beta=0.1,
+            mrstft=torch.nn.L1Loss(),
+        ),
+    ],
+)
+def test_mrstft_aux_losses_return_scalar_for_fixed_and_variable_length_batches(loss_fn):
+    pred = torch.tensor(
+        [
+            [[0.1, 0.2, 0.3, 0.4]],
+            [[0.4, 0.3, 0.2, 0.1]],
+        ],
+        dtype=torch.float32,
+    )
+    target = torch.zeros_like(pred)
+
+    fixed_length_loss = loss_fn(pred, target)
+    variable_length_loss = loss_fn(pred, target, lengths=torch.tensor([4, 2]))
+
+    assert fixed_length_loss.ndim == 0
+    assert variable_length_loss.ndim == 0

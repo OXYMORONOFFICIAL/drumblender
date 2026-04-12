@@ -12,12 +12,20 @@ case "$LOSS_MODE" in
     RUN_PREFIX="run_"
     LOSS_CFG_PATH="$REPO_ROOT/cfg/loss/mss.yaml"
     ;;
-  si|on)
+  amp)
+    RUN_PREFIX="run_AMP_"
+    LOSS_CFG_PATH="$REPO_ROOT/cfg/loss/mss_log_rms.yaml"
+    ;;
+  smooth)
+    RUN_PREFIX="run_SMOOTH_"
+    LOSS_CFG_PATH="$REPO_ROOT/cfg/loss/mss_smoothl1.yaml"
+    ;;
+  si|legacy_si|on)
     RUN_PREFIX="run_SI_"
     LOSS_CFG_PATH="$REPO_ROOT/cfg/loss/safe_mss.yaml"
     ;;
   *)
-    printf 'usage: bash run.sh [plain|si]\n' >&2
+    printf 'usage: bash run.sh [plain|amp|smooth|si|legacy_si]\n' >&2
     exit 1
     ;;
 esac
