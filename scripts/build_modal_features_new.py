@@ -1,0 +1,342 @@
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import math
+import re
+from pathlib import Path
+from typing import Dict, List, Tuple
+
+import torch
+import torchaudio
+from tqdm import tqdm
+
+from drumblender.utils.modal_analysis_new import CQTModalAnalysis
+
+
+def stable_id(rel_path: str) -> str:
+    h = hashlib.md5(rel_path.encode("utf-8")).hexdigest()
+    return str(int(h[:12], 16))
+
+
+def list_wavs(root: Path) -> List[Path]:
+    wavs = [p for p in root.rglob("*") if p.is_file() and p.suffix.lower() == ".wav"]
+    wavs.sort()
+    return wavs
+
+
+def make_pack_key(
+    processed_root: Path,
+    wav_path: Path,
+    pack_depth: int = 1,
+) -> Tuple[str, str, str]:
+    rel = wav_path.relative_to(processed_root)
+    parts = rel.parts
+
+    type_name = "custom"
+    inst_name = "unlabeled"
+
+    inner_dirs = list(parts[:-1])
+    depth = max(1, int(pack_depth))
+    if len(inner_dirs) == 0:
+        pack_name = "__root__"
+    else:
+        pack_name = "/".join(inner_dirs[:depth])
+
+    pack = pack_name
+    return type_name, inst_name, pack
+
+
+def make_splits_within_pack(
+    pack_keys: List[str],
+    seed: int,
+    train: float = 0.8,
+    val: float = 0.1,
+) -> List[str]:
+    if train < 0.0 or val < 0.0 or (train + val) > 1.0:
+        raise ValueError(
+            "Invalid split ratios: require train >= 0, val >= 0, train+val <= 1"
+        )
+
+    by_pack: Dict[str, List[int]] = {}
+    for idx, pack in enumerate(pack_keys):
+        by_pack.setdefault(pack, []).append(idx)
+
+    g = torch.Generator().manual_seed(seed)
+    out = ["train"] * len(pack_keys)
+
+    for pack in sorted(by_pack.keys()):
+        idxs = by_pack[pack]
+        perm = torch.randperm(len(idxs), generator=g).tolist()
+        shuffled = [idxs[i] for i in perm]
+
+        n = len(shuffled)
+        n_train = int(n * train)
+        n_val = int(n * val)
+
+        if n > 0 and n_train == 0:
+            n_train = 1
+        if n_train + n_val > n:
+            n_val = max(0, n - n_train)
+
+        for rank, original_idx in enumerate(shuffled):
+            if rank < n_train:
+                out[original_idx] = "train"
+            elif rank < (n_train + n_val):
+                out[original_idx] = "val"
+            else:
+                out[original_idx] = "test"
+
+    return out
+
+
+@torch.no_grad()
+def main():
+    ap = argparse.ArgumentParser(
+        description="Build modal features with the new HPSS + Kalman + confidence tracker."
+    )
+
+    ap.add_argument(
+        "--processed_root",
+        type=str,
+        default="../datasets/processed",
+        help="Source preprocessed audio root.",
+    )
+    ap.add_argument(
+        "--out_dir",
+        type=str,
+        default="../datasets_new/modal_features/processed_modal_flat",
+        help="Output directory for flat modal-feature dataset.",
+    )
+    ap.add_argument("--meta_name", type=str, default="metadata.json")
+
+    ap.add_argument("--sample_rate", type=int, default=48000)
+    ap.add_argument("--num_modes", type=int, default=64)
+    ap.add_argument("--hop_length", type=int, default=256)
+    ap.add_argument("--fmin", type=int, default=20)
+    ap.add_argument("--n_bins", type=int, default=240)
+    ap.add_argument("--bins_per_octave", type=int, default=24)
+    ap.add_argument("--min_length", type=int, default=10)
+    ap.add_argument("--threshold_db", type=float, default=-80.0)
+
+    ap.add_argument("--mask_threshold", type=float, default=0.8)
+    ap.add_argument("--kalman_k", type=float, default=0.4)
+    ap.add_argument("--kalman_kv", type=float, default=0.4)
+    ap.add_argument("--confidence_threshold", type=float, default=0.5)
+    ap.add_argument("--h_kernel", type=int, default=31)
+    ap.add_argument("--p_kernel", type=int, default=31)
+
+    ap.add_argument("--seed", type=int, default=5152845)
+    ap.add_argument("--max_files", type=int, default=0, help="0 = all files")
+    ap.add_argument(
+        "--pack_depth",
+        type=int,
+        default=1,
+        help="Number of top-level path segments under processed_root used as pack id.",
+    )
+    ap.add_argument(
+        "--write_split",
+        action="store_true",
+        help="Write split labels into metadata during preprocessing.",
+    )
+
+    ap.add_argument(
+        "--pad_short",
+        dest="pad_short",
+        action="store_true",
+        help="Enable auto right-padding retry for CQT reflect-pad failures (default: enabled).",
+    )
+    ap.add_argument(
+        "--no_pad_short",
+        dest="pad_short",
+        action="store_false",
+        help="Disable auto right-padding retry for CQT reflect-pad failures.",
+    )
+    ap.set_defaults(pad_short=True)
+    ap.add_argument(
+        "--pad_to",
+        type=int,
+        default=0,
+        help="If >0, right-pad audio shorter than this to this length (samples).",
+    )
+    ap.add_argument(
+        "--min_duration_ms",
+        type=float,
+        default=0.0,
+        help="If >0, skip files shorter than this (ms). Set 0 to not skip.",
+    )
+    args = ap.parse_args()
+
+    processed_root = Path(args.processed_root)
+    if not processed_root.exists():
+        raise FileNotFoundError(processed_root)
+
+    out_dir = Path(args.out_dir)
+    audio_dir = out_dir / "audio"
+    feat_dir = out_dir / "features"
+    audio_dir.mkdir(parents=True, exist_ok=True)
+    feat_dir.mkdir(parents=True, exist_ok=True)
+
+    wavs = list_wavs(processed_root)
+    if args.max_files and args.max_files > 0:
+        wavs = wavs[: args.max_files]
+
+    print(f"[scan] {processed_root} -> {len(wavs)} wavs")
+    if len(wavs) == 0:
+        raise RuntimeError("No wavs found.")
+
+    typed: List[Tuple[str, str, str]] = []
+    packs: List[str] = []
+    for p in wavs:
+        type_name, inst_name, pack = make_pack_key(
+            processed_root,
+            p,
+            pack_depth=args.pack_depth,
+        )
+        typed.append((type_name, inst_name, pack))
+        packs.append(pack)
+
+    split_by_index = None
+    if args.write_split:
+        split_by_index = make_splits_within_pack(packs, seed=args.seed)
+
+    modal = CQTModalAnalysis(
+        args.sample_rate,
+        hop_length=args.hop_length,
+        fmin=args.fmin,
+        n_bins=args.n_bins,
+        bins_per_octave=args.bins_per_octave,
+        min_length=args.min_length,
+        num_modes=args.num_modes,
+        threshold=args.threshold_db,
+        mask_threshold=args.mask_threshold,
+        kalman_k=args.kalman_k,
+        kalman_kv=args.kalman_kv,
+        confidence_threshold=args.confidence_threshold,
+        h_kernel=args.h_kernel,
+        p_kernel=args.p_kernel,
+    )
+
+    meta: Dict[str, Dict] = {}
+    failed = 0
+    kept = 0
+
+    def right_pad_to(w: torch.Tensor, target: int) -> torch.Tensor:
+        t = int(w.shape[-1])
+        if t >= target:
+            return w
+        return torch.nn.functional.pad(w, (0, target - t))
+
+    def num_frames_from_len(length: int, hop: int) -> int:
+        return max(1, math.ceil(length / hop))
+
+    def extract_feat(w: torch.Tensor) -> torch.Tensor:
+        modal_freqs, modal_amps, modal_phases = modal(w)
+
+        if modal_freqs.numel() == 0 or modal_freqs.shape[1] == 0:
+            num_frames = num_frames_from_len(int(w.shape[-1]), args.hop_length)
+            return w.new_zeros((3, 0, num_frames))
+
+        modal_freqs = 2 * torch.pi * modal_freqs / args.sample_rate
+        feat = torch.stack([modal_freqs, modal_amps, modal_phases])
+        feat = feat.squeeze(1)
+        return feat
+
+    def infer_required_length_from_padding_error(msg: str, current_len: int) -> int:
+        m = re.search(r"padding\s+\((\d+),\s*(\d+)\)", msg)
+        if m:
+            pad_l = int(m.group(1))
+            pad_r = int(m.group(2))
+            return max(current_len, pad_l + 1, pad_r + 1)
+        return max(current_len + 1, current_len * 2)
+
+    pbar = tqdm(
+        list(zip(wavs, typed)),
+        total=len(wavs),
+        desc="modal-new",
+        unit="file",
+        dynamic_ncols=True,
+    )
+
+    for idx, (wav_path, (type_name, inst_name, pack)) in enumerate(pbar):
+        rel = wav_path.relative_to(processed_root)
+        key = stable_id(str(rel))
+
+        try:
+            wav, sr = torchaudio.load(str(wav_path))
+            if wav.ndim != 2:
+                raise ValueError(f"bad wav shape: {tuple(wav.shape)}")
+            if sr != args.sample_rate:
+                raise ValueError(
+                    f"sample_rate mismatch: {sr} != {args.sample_rate} for {rel}"
+                )
+            if wav.shape[0] == 0:
+                raise ValueError("empty channel dim")
+            wav = wav[:1, :]
+
+            if args.min_duration_ms and args.min_duration_ms > 0:
+                min_samples = int(args.sample_rate * (args.min_duration_ms / 1000.0))
+                if wav.shape[-1] < min_samples:
+                    raise ValueError(f"too_short: {wav.shape[-1]} < {min_samples} samples")
+
+            if args.pad_to and args.pad_to > 0:
+                wav = right_pad_to(wav, args.pad_to)
+
+            try:
+                feat = extract_feat(wav)
+            except RuntimeError as e:
+                msg = str(e)
+                if (not args.pad_short) or (
+                    "Padding size should be less than the corresponding input dimension"
+                    not in msg
+                ):
+                    raise
+                target = infer_required_length_from_padding_error(
+                    msg, int(wav.shape[-1])
+                )
+                feat = extract_feat(right_pad_to(wav, target))
+
+            p_dim, m_dim, f_dim = feat.shape
+            if m_dim < args.num_modes:
+                pad = feat.new_zeros((p_dim, args.num_modes - m_dim, f_dim))
+                feat = torch.cat([feat, pad], dim=1)
+            elif m_dim > args.num_modes:
+                feat = feat[:, : args.num_modes, :]
+
+            out_wav = audio_dir / f"{key}.wav"
+            out_feat = feat_dir / f"{key}.pt"
+            torchaudio.save(str(out_wav), wav, args.sample_rate)
+            torch.save(feat, out_feat)
+
+            meta_item = {
+                "filename": str(out_wav.relative_to(out_dir)),
+                "feature_file": str(out_feat.relative_to(out_dir)),
+                "sample_pack_key": pack,
+                "instrument": inst_name,
+                "type": type_name,
+                "num_samples": int(wav.shape[-1]),
+                "orig_relpath": str(rel),
+            }
+            if split_by_index is not None:
+                meta_item["split"] = split_by_index[idx]
+            meta[key] = meta_item
+            kept += 1
+
+        except Exception as e:
+            failed += 1
+            print("fail:", str(rel), "->", repr(e))
+
+        pbar.set_postfix(kept=kept, failed=failed)
+
+    meta_path = out_dir / args.meta_name
+    with open(meta_path, "w", encoding="utf-8") as f:
+        json.dump(meta, f, ensure_ascii=False)
+
+    print("[done] kept:", len(meta), "failed:", failed)
+    print("out_dir:", out_dir)
+    print("meta:", meta_path)
+
+
+if __name__ == "__main__":
+    main()
