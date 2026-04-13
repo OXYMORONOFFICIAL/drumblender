@@ -1,0 +1,281 @@
+{
+  "site_title": "DrumBlender Experiment Board",
+  "generated_from": "C:/Users/mindi/Desktop/drumblender/logs",
+  "generated_run_count": 5,
+  "audio_run_count": 1,
+  "runs": [
+    {
+      "slug": "result-05-0220-adamw-si",
+      "name": "result_05_0220_AdamW_SI",
+      "display_name": "result 05 0220 AdamW SI",
+      "relative_dir": "C:/Users/mindi/Desktop/drumblender/logs/result_05_0220_AdamW_SI",
+      "config": "cfg/05_all_parallel.yaml",
+      "checkpoint": "/root/drumblender/ckpt/epoch090-step00244517-v1.ckpt",
+      "split": "test",
+      "num_items": 1354,
+      "export_time_utc": "2026-02-23T21:03:07.951887+00:00",
+      "metrics": {
+        "test/loss": 1.2458436639217365,
+        "test/lsd": 2.164564609527588,
+        "test/flux_onset": 303.1473693847656,
+        "test/mss_sc": 0.533236177910554,
+        "test/mss_log": 0.7126074850207066
+      },
+      "metric_names": [
+        "test/flux_onset",
+        "test/loss",
+        "test/lsd",
+        "test/mss_log",
+        "test/mss_sc"
+      ],
+      "sample_metric_names": [
+        "test/loss"
+      ],
+      "loss_stats": {
+        "mean": 1.2458436639217365,
+        "std": 0.27326520543390415,
+        "min": 0.26789969205856323,
+        "max": 2.7797837257385254,
+        "median": 1.2381243109703064,
+        "p95": 1.6645193099975586,
+        "count": 1354
+      },
+      "git_commit": "d97c76fa36d536514116ab183d51ebff6ff74330",
+      "has_audio": true,
+      "samples": [
+        {
+          "bucket": "best",
+          "source_filename": "splice/si_xylophone_alto_mallet_quieter_calm_C5_1.wav",
+          "pack": "splice",
+          "length": 57828,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 0.26789969205856323
+          },
+          "audio": {
+            "recon": "media/result-05-0220-adamw-si/recon/01-si-xylophone-alto-mallet-quieter-calm-c5-1-7effaf1f.wav",
+            "target": "media/result-05-0220-adamw-si/target/01-si-xylophone-alto-mallet-quieter-calm-c5-1-7effaf1f.wav"
+          }
+        },
+        {
+          "bucket": "best",
+          "source_filename": "splice/si_xylophone_alto_mallet_quieter_sensational_A4_1.wav",
+          "pack": "splice",
+          "length": 49246,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 0.29819774627685547
+          },
+          "audio": {
+            "recon": "media/result-05-0220-adamw-si/recon/02-si-xylophone-alto-mallet-quieter-sensational-a4--b1d64a34.wav",
+            "target": "media/result-05-0220-adamw-si/target/02-si-xylophone-alto-mallet-quieter-sensational-a4--b1d64a34.wav"
+          }
+        },
+        {
+          "bucket": "median",
+          "source_filename": "splice/ESM_BKM_drum_kick_one_shot_mid_thick_solid_low_1.wav",
+          "pack": "splice",
+          "length": 18432,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 1.2365655899047852
+          },
+          "audio": {
+            "recon": "media/result-05-0220-adamw-si/recon/03-esm-bkm-drum-kick-one-shot-mid-thick-solid-low-1-92c18d0c.wav",
+            "target": "media/result-05-0220-adamw-si/target/03-esm-bkm-drum-kick-one-shot-mid-thick-solid-low-1-92c18d0c.wav"
+          }
+        },
+        {
+          "bucket": "median",
+          "source_filename": "MDLib2/Snare/Rim/MN_Snare_Rim_1313.2.wav",
+          "pack": "MDLib2",
+          "length": 21504,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 1.2379841804504395
+          },
+          "audio": {
+            "recon": "media/result-05-0220-adamw-si/recon/04-mn-snare-rim-13132-b7f10483.wav",
+            "target": "media/result-05-0220-adamw-si/target/04-mn-snare-rim-13132-b7f10483.wav"
+          }
+        },
+        {
+          "bucket": "worst",
+          "source_filename": "splice/DS_PP_drum_hat_closed_bright_1.wav",
+          "pack": "splice",
+          "length": 4786,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 2.7797837257385254
+          },
+          "audio": {
+            "recon": "media/result-05-0220-adamw-si/recon/05-ds-pp-drum-hat-closed-bright-1-74ccbc3b.wav",
+            "target": "media/result-05-0220-adamw-si/target/05-ds-pp-drum-hat-closed-bright-1-74ccbc3b.wav"
+          }
+        },
+        {
+          "bucket": "worst",
+          "source_filename": "TriSamples808/BD Bass Drum/TR808 BD Bass Drum Medium 08.wav",
+          "pack": "TriSamples808",
+          "length": 52624,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 2.649029493331909
+          },
+          "audio": {
+            "recon": "media/result-05-0220-adamw-si/recon/06-tr808-bd-bass-drum-medium-08-e9a3adf7.wav",
+            "target": "media/result-05-0220-adamw-si/target/06-tr808-bd-bass-drum-medium-08-e9a3adf7.wav"
+          }
+        }
+      ]
+    },
+    {
+      "slug": "result-01-adam",
+      "name": "result_01_adam",
+      "display_name": "result 01 adam",
+      "relative_dir": "C:/Users/mindi/Desktop/drumblender/logs/summary_compare_inputs/result_01_adam",
+      "config": "cfg/01_noise_params.yaml",
+      "checkpoint": "/workspace/drumblender/ckpt/last.ckpt",
+      "split": "test",
+      "num_items": 1354,
+      "export_time_utc": "2026-02-19T15:10:01.392863+00:00",
+      "metrics": {
+        "test/loss": 1.3157505950666248,
+        "test/lsd": 2.0751800537109375,
+        "test/flux_onset": 323.11444091796875,
+        "test/mss_sc": 0.6368036912575342,
+        "test/mss_log": 0.6789469061036933
+      },
+      "metric_names": [
+        "test/flux_onset",
+        "test/loss",
+        "test/lsd",
+        "test/mss_log",
+        "test/mss_sc"
+      ],
+      "sample_metric_names": [],
+      "loss_stats": {
+        "mean": 1.3157505950666248,
+        "min": 0.2380051463842392,
+        "max": 2.4349241256713867,
+        "median": 1.3248978853225708,
+        "p95": 1.6840823888778687,
+        "count": 1354
+      },
+      "git_commit": "2050ee77a83dc681ad0bed431674e85107bc0ee1",
+      "has_audio": false,
+      "samples": []
+    },
+    {
+      "slug": "recon-bundle-05-last-v2",
+      "name": "recon_bundle_05_last_v2",
+      "display_name": "recon bundle 05 last v2",
+      "relative_dir": "C:/Users/mindi/Desktop/drumblender/logs/summary_compare_inputs/recon_bundle_05_last_v2",
+      "config": "cfg/05_all_parallel.yaml",
+      "checkpoint": "/root/drumblender/ckpt/last.ckpt",
+      "split": "test",
+      "num_items": 1354,
+      "export_time_utc": "2026-02-19T03:10:46.335840+00:00",
+      "metrics": {
+        "test/loss": 1.5562316913548389,
+        "test/lsd": 2.2420833110809326,
+        "test/flux_onset": 579.0414428710938,
+        "test/mss_sc": 0.8233304503353167,
+        "test/mss_log": 0.7329012441450243
+      },
+      "metric_names": [
+        "test/flux_onset",
+        "test/loss",
+        "test/lsd",
+        "test/mss_log",
+        "test/mss_sc"
+      ],
+      "sample_metric_names": [],
+      "loss_stats": {
+        "mean": 1.5562316913548389,
+        "min": 0.3361254632472992,
+        "max": 7.859315872192383,
+        "median": 1.3566336035728455,
+        "p95": 3.003152370452881,
+        "count": 1354
+      },
+      "git_commit": "2050ee77a83dc681ad0bed431674e85107bc0ee1",
+      "has_audio": false,
+      "samples": []
+    },
+    {
+      "slug": "result-05-adam-0219",
+      "name": "result_05_Adam_0219",
+      "display_name": "result 05 Adam 0219",
+      "relative_dir": "C:/Users/mindi/Desktop/drumblender/logs/summary_compare_inputs/result_05_Adam_0219",
+      "config": "cfg/05_all_parallel.yaml",
+      "checkpoint": "/root/drumblender/ckpt/last.ckpt",
+      "split": "test",
+      "num_items": 1354,
+      "export_time_utc": "2026-02-19T15:02:40.643468+00:00",
+      "metrics": {
+        "test/loss": 1.5564021598024946,
+        "test/lsd": 2.2418935298919678,
+        "test/flux_onset": 579.2852172851562,
+        "test/mss_sc": 0.8234056463820015,
+        "test/mss_log": 0.7329965108012343
+      },
+      "metric_names": [
+        "test/flux_onset",
+        "test/loss",
+        "test/lsd",
+        "test/mss_log",
+        "test/mss_sc"
+      ],
+      "sample_metric_names": [],
+      "loss_stats": {
+        "mean": 1.5564021598024946,
+        "min": 0.33676737546920776,
+        "max": 7.859063625335693,
+        "median": 1.3574087619781494,
+        "p95": 3.0054852962493896,
+        "count": 1354
+      },
+      "git_commit": "2050ee77a83dc681ad0bed431674e85107bc0ee1",
+      "has_audio": false,
+      "samples": []
+    },
+    {
+      "slug": "result-04-0220-adamw",
+      "name": "result_04_0220_AdamW",
+      "display_name": "result 04 0220 AdamW",
+      "relative_dir": "C:/Users/mindi/Desktop/drumblender/logs/summary_compare_inputs/result_04_0220_AdamW",
+      "config": "cfg/04_noise_parallel_transient_params.yaml",
+      "checkpoint": "/workspace/drumblender/ckpt/epoch053-step00290358.ckpt",
+      "split": "test",
+      "num_items": 1354,
+      "export_time_utc": "2026-02-20T02:23:26.710872+00:00",
+      "metrics": {
+        "test/loss": 9.187019470259218,
+        "test/lsd": 3.086717128753662,
+        "test/flux_onset": 254288.46875,
+        "test/mss_sc": 8.306713711387825,
+        "test/mss_log": 0.8803057798034507
+      },
+      "metric_names": [
+        "test/flux_onset",
+        "test/loss",
+        "test/lsd",
+        "test/mss_log",
+        "test/mss_sc"
+      ],
+      "sample_metric_names": [],
+      "loss_stats": {
+        "mean": 9.187019470259218,
+        "min": 0.9824279546737671,
+        "max": 200.40830993652344,
+        "median": 1.691243588924408,
+        "p95": 43.567474365234375,
+        "count": 1354
+      },
+      "git_commit": "1b049e106623c166d2f8e7fb140fd1947170e50e",
+      "has_audio": false,
+      "samples": []
+    }
+  ]
+}

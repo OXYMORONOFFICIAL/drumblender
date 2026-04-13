@@ -94,6 +94,22 @@ The `--trainer.logger` argument overrides the logging configuration in the saved
 
 To run this command on a CPU you can add the argument `--trainer.accelerator cpu`
 
+## GitHub Pages
+This repository includes a static experiment board under `docs/` for publishing
+evaluation summaries and a small curated audio audition set on GitHub Pages.
+
+To rebuild the site from local evaluation outputs in `logs/`:
+
+```bash
+python scripts/build_github_pages.py --logs-root logs --output docs --samples-per-run 6
+```
+
+The script scans `logs/**/evaluation/summary.json`, copies a few
+target/reconstruction audio pairs for runs that include `manifest.csv`, and
+writes the site data to `docs/data/site-data.json`. A GitHub Actions workflow at
+`.github/workflows/pages.yml` then deploys the `docs/` folder to GitHub Pages on
+pushes to `main`.
+
 ## System Information
 For Forum Acusticum 2023, experiments were run using
 
