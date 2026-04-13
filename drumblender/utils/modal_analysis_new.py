@@ -1,13 +1,13 @@
 """
-Methods for performing modal analysis on a CQT spectrogram
+Methods for performing modal analysis on a CQT spectrogram.
+
 Replaces the baseline nearest-neighbor tracking with a forward-time
 HPSS + Kalman Tracking + Confidence pipeline.
 """
-from typing import List, Optional, Tuple, Dict
+from typing import List, Optional, Tuple
 import numpy as np
 import torch
 from scipy.ndimage import median_filter
-from scipy.signal import find_peaks
 
 try:
     import nnAudio.features as features
@@ -17,6 +17,19 @@ except ImportError:
 
 class KalmanTrack:
     """State tracker for modal components."""
+
+    __slots__ = (
+        "bin",
+        "velocity",
+        "history",
+        "alive_since",
+        "last_frame",
+        "miss_count",
+        "active",
+        "K",
+        "K_V",
+    )
+
     MAX_MISS = 3
 
     def __init__(self, frame: int, bin_idx: int, k: float, k_v: float) -> None:
@@ -106,6 +119,21 @@ class CQTModalAnalysis:
         self.h_kernel = h_kernel
         self.p_kernel = p_kernel
 
+        # Precompute neighbourhood windows used by prominence scoring.
+        prom_lo = np.empty(self.n_bins, dtype=np.int32)
+        prom_hi = np.empty(self.n_bins, dtype=np.int32)
+        prom_den = np.empty(self.n_bins, dtype=np.float32)
+        for b in range(self.n_bins):
+            w = 18 if b < 60 else (12 if b < 120 else 6)
+            lo = max(0, b - w)
+            hi = min(self.n_bins, b + w + 1)
+            prom_lo[b] = lo
+            prom_hi[b] = hi
+            prom_den[b] = float(max(1, hi - lo - 1))
+        self._prom_lo = prom_lo
+        self._prom_hi = prom_hi
+        self._prom_den = prom_den
+
         self.cqt = features.CQT(
             sr=sample_rate,
             fmin=fmin,
@@ -168,9 +196,9 @@ class CQTModalAnalysis:
 
         # 1. Extract Arrays
         X_complex = spec[..., 0] + 1j * spec[..., 1]
-        X_mag = np.abs(X_complex)
-        X_db = 20.0 * np.log10(X_mag + 1e-8)
-        X_phase = np.angle(X_complex)
+        X_mag = np.abs(X_complex).astype(np.float32, copy=False)
+        X_db = (20.0 * np.log10(X_mag + 1e-8)).astype(np.float32, copy=False)
+        X_phase = np.angle(X_complex).astype(np.float32, copy=False)
         n_bins, n_frames = X_mag.shape
 
         # 2. Stage 1: HPSS Mask
@@ -179,12 +207,12 @@ class CQTModalAnalysis:
         tonal_mask = H / (H + P + 1e-8)
 
         # 3. Peak Detection & HPSS Gating
-        peaks_per_frame = []
+        peak_mask = peak_detection_fast(X_db, self.threshold)
+        peaks_per_frame = [np.flatnonzero(peak_mask[:, t]) + 1 for t in range(n_frames)]
         masked_set = set()
 
         for t in range(n_frames):
-            peaks, _ = find_peaks(X_db[:, t], height=self.threshold)
-            peaks_per_frame.append(peaks)
+            peaks = peaks_per_frame[t]
             for b in peaks:
                 if tonal_mask[b, t] >= self.mask_threshold:
                     masked_set.add((t, int(b)))
@@ -232,12 +260,17 @@ class CQTModalAnalysis:
             if not len(peaks):
                 continue
             frame_db = X_db[:, t]
-            raw = np.empty(len(peaks))
+            prefix = np.empty(n_bins + 1, dtype=np.float32)
+            prefix[0] = 0.0
+            np.cumsum(frame_db, out=prefix[1:])
+
+            raw = np.empty(len(peaks), dtype=np.float32)
             for i, b in enumerate(peaks):
-                w = 18 if b < 60 else (12 if b < 120 else 6)
-                lo, hi = max(0, b - w), min(n_bins, b + w + 1)
-                nb = np.concatenate([frame_db[lo:b], frame_db[b + 1:hi]])
-                raw[i] = frame_db[b] / (nb.mean() + 1e-8) if len(nb) else 0.0
+                lo = int(self._prom_lo[b])
+                hi = int(self._prom_hi[b])
+                total = prefix[hi] - prefix[lo] - frame_db[b]
+                nb_mean = total / self._prom_den[b]
+                raw[i] = frame_db[b] / (nb_mean + 1e-8)
 
             lo_, hi_ = raw.min(), raw.max()
             norm = (raw - lo_) / (hi_ - lo_) if hi_ > lo_ else np.zeros_like(raw)
@@ -348,3 +381,16 @@ def peak_interpolation(
     ipphase = np.interp(iploc, np.arange(0, phase.size), phase)
 
     return iploc, ipmag, ipphase
+
+
+def peak_detection_fast(x_db: np.ndarray, threshold: float) -> np.ndarray:
+    """
+    Vectorized local-maximum peak detection over all frames at once.
+
+    Returns a boolean mask of shape (bins - 2, frames), corresponding to
+    candidate peaks in x_db[1:-1].
+    """
+    center = x_db[1:-1]
+    prev_ = x_db[:-2]
+    next_ = x_db[2:]
+    return (center > threshold) & (center > prev_) & (center > next_)
