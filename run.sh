@@ -8,6 +8,8 @@ cd "$REPO_ROOT" || exit 1
 LOSS_MODE="${1:-plain}"
 NOISE_ENCODER_MODE="${2:-baseline}"
 TRANSIENT_ENCODER_MODE="${3:-baseline}"
+BATCH_SIZE="${4:-${BATCH_SIZE:-}}"
+ACCUM_GRAD_BATCHES="${5:-${ACCUM_GRAD_BATCHES:-}}"
 
 case "$LOSS_MODE" in
   plain|baseline|off)
@@ -27,7 +29,7 @@ case "$LOSS_MODE" in
     LOSS_CFG_PATH="$REPO_ROOT/cfg/loss/safe_mss.yaml"
     ;;
   *)
-    printf 'usage: bash run.sh [plain|amp|smooth|si|legacy_si] [baseline|dac|dac_lstm] [baseline|dac]\n' >&2
+    printf 'usage: bash run.sh [plain|amp|smooth|si|legacy_si] [baseline|dac|dac_lstm] [baseline|dac] [batch_size] [accumulate_grad_batches]\n' >&2
     exit 1
     ;;
 esac
@@ -46,7 +48,7 @@ case "$NOISE_ENCODER_MODE" in
     NOISE_ENCODER_CFG_PATH="$REPO_ROOT/cfg/upgrades/encoders/noise_dac_lstm_style.yaml"
     ;;
   *)
-    printf 'usage: bash run.sh [plain|amp|smooth|si|legacy_si] [baseline|dac|dac_lstm] [baseline|dac]\n' >&2
+    printf 'usage: bash run.sh [plain|amp|smooth|si|legacy_si] [baseline|dac|dac_lstm] [baseline|dac] [batch_size] [accumulate_grad_batches]\n' >&2
     exit 1
     ;;
 esac
@@ -61,7 +63,7 @@ case "$TRANSIENT_ENCODER_MODE" in
     TRANSIENT_ENCODER_CFG_PATH="$REPO_ROOT/cfg/upgrades/encoders/transient_dac_style.yaml"
     ;;
   *)
-    printf 'usage: bash run.sh [plain|amp|smooth|si|legacy_si] [baseline|dac|dac_lstm] [baseline|dac]\n' >&2
+    printf 'usage: bash run.sh [plain|amp|smooth|si|legacy_si] [baseline|dac|dac_lstm] [baseline|dac] [batch_size] [accumulate_grad_batches]\n' >&2
     exit 1
     ;;
 esac
@@ -109,6 +111,14 @@ if [[ -n "$LR" ]]; then
   CMD+=(--optimizer.init_args.lr "$LR")
 fi
 
+if [[ -n "$BATCH_SIZE" ]]; then
+  CMD+=(--data.init_args.batch_size "$BATCH_SIZE")
+fi
+
+if [[ -n "$ACCUM_GRAD_BATCHES" ]]; then
+  CMD+=(--trainer.accumulate_grad_batches "$ACCUM_GRAD_BATCHES")
+fi
+
 if [[ -n "$NOISE_ENCODER_CFG_PATH" ]]; then
   CMD+=(
     --model.init_args.noise_autoencoder "$NOISE_ENCODER_CFG_PATH"
@@ -138,5 +148,11 @@ fi
 printf '[run.sh] ckpt dir: %s\n' "$RUN_CKPT_DIR"
 if [[ -n "$LR" ]]; then
   printf '[run.sh] lr override: %s\n' "$LR"
+fi
+if [[ -n "$BATCH_SIZE" ]]; then
+  printf '[run.sh] batch size override: %s\n' "$BATCH_SIZE"
+fi
+if [[ -n "$ACCUM_GRAD_BATCHES" ]]; then
+  printf '[run.sh] accumulate grad batches override: %s\n' "$ACCUM_GRAD_BATCHES"
 fi
 "${CMD[@]}" 2>&1 | tee -a "$RUN_LOG_FILE"
