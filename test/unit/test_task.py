@@ -135,3 +135,49 @@ def test_drumblender_forwards_all(mocker):
     )
 
     assert torch.all(y == expected_transient_output)
+
+
+def test_drumblender_passes_lengths_to_audio_encoders_that_accept_them():
+    class FakeModalSynth(torch.nn.Module):
+        def forward(self, params, length=None):
+            return torch.zeros(params.shape[0], 1, length)
+
+    class FakeNoiseEncoder(torch.nn.Module):
+        def __init__(self, output):
+            super().__init__()
+            self.output = output
+            self.lengths_seen = None
+
+        def forward(self, x, lengths=None):
+            self.lengths_seen = lengths
+            return self.output
+
+    class FakeNoiseSynth(torch.nn.Module):
+        def forward(self, params, length=None):
+            return torch.zeros(params.shape[0], length)
+
+    batch_size = 2
+    num_samples = 1024
+    num_params = 3
+    num_modes = 16
+    num_steps = 32
+
+    loss_fn = lambda pred, target: torch.tensor(0.0)
+    noise_encoder = FakeNoiseEncoder(torch.randn(batch_size, 8, 128))
+
+    model = DrumBlender(
+        modal_synth=FakeModalSynth(),
+        loss_fn=loss_fn,
+        noise_autoencoder=noise_encoder,
+        noise_autoencoder_accepts_audio=True,
+        noise_synth=FakeNoiseSynth(),
+    )
+
+    x = torch.randn(batch_size, 1, num_samples)
+    p = torch.randn(batch_size, num_params, num_modes, num_steps)
+    lengths = torch.tensor([1024, 768], dtype=torch.long)
+
+    model(x, p, lengths=lengths)
+
+    assert noise_encoder.lengths_seen is not None
+    torch.testing.assert_close(noise_encoder.lengths_seen, lengths)

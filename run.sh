@@ -29,7 +29,7 @@ case "$LOSS_MODE" in
     LOSS_CFG_PATH="$REPO_ROOT/cfg/loss/safe_mss.yaml"
     ;;
   *)
-    printf 'usage: bash run.sh [plain|amp|smooth|si|legacy_si] [baseline|dac|dac_lstm] [baseline|dac] [batch_size] [accumulate_grad_batches]\n' >&2
+    printf 'usage: bash run.sh [plain|amp|smooth|si|legacy_si] [baseline|dac|dac_lstm|dac_len|dac_lstm_len|dac_len_lstm_len] [baseline|dac] [batch_size] [accumulate_grad_batches]\n' >&2
     exit 1
     ;;
 esac
@@ -47,8 +47,20 @@ case "$NOISE_ENCODER_MODE" in
     NOISE_RUN_TAG="NOISEDACLSTM_"
     NOISE_ENCODER_CFG_PATH="$REPO_ROOT/cfg/upgrades/encoders/noise_dac_lstm_style.yaml"
     ;;
+  dac_len|daclen)
+    NOISE_RUN_TAG="NOISEDACLEN_"
+    NOISE_ENCODER_CFG_PATH="$REPO_ROOT/cfg/upgrades/encoders/noise_dac_len_style.yaml"
+    ;;
+  dac_lstm_len|daclstm_len|daclstmlen)
+    NOISE_RUN_TAG="NOISEDACLSTMLEN_"
+    NOISE_ENCODER_CFG_PATH="$REPO_ROOT/cfg/upgrades/encoders/noise_dac_lstm_len_style.yaml"
+    ;;
+  dac_len_lstm_len|daclen_lstm_len|daclenlstmlen)
+    NOISE_RUN_TAG="NOISEDACLENLSTMLEN_"
+    NOISE_ENCODER_CFG_PATH="$REPO_ROOT/cfg/upgrades/encoders/noise_dac_len_lstm_len_style.yaml"
+    ;;
   *)
-    printf 'usage: bash run.sh [plain|amp|smooth|si|legacy_si] [baseline|dac|dac_lstm] [baseline|dac] [batch_size] [accumulate_grad_batches]\n' >&2
+    printf 'usage: bash run.sh [plain|amp|smooth|si|legacy_si] [baseline|dac|dac_lstm|dac_len|dac_lstm_len|dac_len_lstm_len] [baseline|dac] [batch_size] [accumulate_grad_batches]\n' >&2
     exit 1
     ;;
 esac
@@ -63,7 +75,7 @@ case "$TRANSIENT_ENCODER_MODE" in
     TRANSIENT_ENCODER_CFG_PATH="$REPO_ROOT/cfg/upgrades/encoders/transient_dac_style.yaml"
     ;;
   *)
-    printf 'usage: bash run.sh [plain|amp|smooth|si|legacy_si] [baseline|dac|dac_lstm] [baseline|dac] [batch_size] [accumulate_grad_batches]\n' >&2
+    printf 'usage: bash run.sh [plain|amp|smooth|si|legacy_si] [baseline|dac|dac_lstm|dac_len|dac_lstm_len|dac_len_lstm_len] [baseline|dac] [batch_size] [accumulate_grad_batches]\n' >&2
     exit 1
     ;;
 esac

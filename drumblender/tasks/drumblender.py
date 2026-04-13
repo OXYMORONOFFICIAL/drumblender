@@ -172,13 +172,22 @@ class DrumBlender(pl.LightningModule):
         # Main embeddings
         embedding = None
         if self.encoder is not None:
-            embedding = self.encoder(original)
+            embedding = self._call_module_with_optional_lengths(
+                self.encoder,
+                original,
+                lengths=lengths,
+            )
 
         # Modal parameter autoencoder
         modal_params = params
         if self.modal_autoencoder is not None:
             if self.modal_autoencoder_accepts_audio:
-                modal_params = self.modal_autoencoder(original, params)
+                modal_params = self._call_module_with_optional_lengths(
+                    self.modal_autoencoder,
+                    original,
+                    params,
+                    lengths=lengths,
+                )
             else:
                 modal_params, _ = self.modal_autoencoder(embedding, params)
 
@@ -186,7 +195,11 @@ class DrumBlender(pl.LightningModule):
         noise_params = None
         if self.noise_autoencoder is not None:
             if self.noise_autoencoder_accepts_audio:
-                noise_params = self.noise_autoencoder(original)
+                noise_params = self._call_module_with_optional_lengths(
+                    self.noise_autoencoder,
+                    original,
+                    lengths=lengths,
+                )
             else:
                 noise_params, _ = self.noise_autoencoder(embedding)
 
@@ -194,7 +207,11 @@ class DrumBlender(pl.LightningModule):
         transient_params = None
         if self.transient_autoencoder is not None:
             if self.transient_autoencoder_accepts_audio:
-                transient_params = self.transient_autoencoder(original)
+                transient_params = self._call_module_with_optional_lengths(
+                    self.transient_autoencoder,
+                    original,
+                    lengths=lengths,
+                )
             else:
                 transient_params, _ = self.transient_autoencoder(embedding)
 
@@ -285,6 +302,11 @@ class DrumBlender(pl.LightningModule):
             p.kind == inspect.Parameter.VAR_KEYWORD
             for p in sig.parameters.values()
         )
+
+    def _call_module_with_optional_lengths(self, module, *args, lengths=None):
+        if lengths is not None and self._callable_accepts_kwarg(module, "lengths"):
+            return module(*args, lengths=lengths)
+        return module(*args)
 
     @staticmethod
     def _make_time_mask(lengths: torch.Tensor, T: int, device):
