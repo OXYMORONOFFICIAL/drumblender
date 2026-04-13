@@ -16,8 +16,62 @@ SPLIT="${SPLIT:-test}"
 DEVICE="${DEVICE:-cuda}"
 SAVE_TARGET="${SAVE_TARGET:-on}"
 MAKE_TAR="${MAKE_TAR:-off}"
+LOSS_MODE="${1:-${LOSS_MODE:-plain}}"
+NOISE_ENCODER_MODE="${2:-${NOISE_ENCODER_MODE:-baseline}}"
+TRANSIENT_ENCODER_MODE="${3:-${TRANSIENT_ENCODER_MODE:-baseline}}"
 
 cd "$REPO_ROOT" || exit 1
+
+case "$LOSS_MODE" in
+  plain|baseline|off)
+    LOSS_CFG_PATH=""
+    ;;
+  amp)
+    LOSS_CFG_PATH="$REPO_ROOT/cfg/loss/mss_log_rms.yaml"
+    ;;
+  smooth)
+    LOSS_CFG_PATH="$REPO_ROOT/cfg/loss/mss_smoothl1.yaml"
+    ;;
+  si|legacy_si|on)
+    LOSS_CFG_PATH="$REPO_ROOT/cfg/loss/safe_mss.yaml"
+    ;;
+  *)
+    printf 'usage: bash test_per_pack.sh [plain|amp|smooth|si|legacy_si] [baseline|dac|dac_lstm] [baseline|dac]\n' >&2
+    exit 1
+    ;;
+esac
+
+case "$NOISE_ENCODER_MODE" in
+  baseline|soundstream|off)
+    NOISE_ENCODER_BACKBONE=""
+    NOISE_ENCODER_CFG_PATH=""
+    ;;
+  dac)
+    NOISE_ENCODER_BACKBONE="dac"
+    NOISE_ENCODER_CFG_PATH=""
+    ;;
+  dac_lstm|daclstm|sequence)
+    NOISE_ENCODER_BACKBONE=""
+    NOISE_ENCODER_CFG_PATH="$REPO_ROOT/cfg/upgrades/encoders/noise_dac_lstm_style.yaml"
+    ;;
+  *)
+    printf 'usage: bash test_per_pack.sh [plain|amp|smooth|si|legacy_si] [baseline|dac|dac_lstm] [baseline|dac]\n' >&2
+    exit 1
+    ;;
+esac
+
+case "$TRANSIENT_ENCODER_MODE" in
+  baseline|soundstream|off)
+    TRANSIENT_ENCODER_BACKBONE=""
+    ;;
+  dac)
+    TRANSIENT_ENCODER_BACKBONE="dac"
+    ;;
+  *)
+    printf 'usage: bash test_per_pack.sh [plain|amp|smooth|si|legacy_si] [baseline|dac|dac_lstm] [baseline|dac]\n' >&2
+    exit 1
+    ;;
+esac
 
 if [[ ! -f "$CFG_PATH" ]]; then
   printf '[test_per_pack.sh] missing config: %s\n' "$CFG_PATH" >&2
@@ -56,6 +110,22 @@ for DATA_CFG in "${PACK_CFGS[@]}"; do
     --device "$DEVICE"
   )
 
+  if [[ -n "$LOSS_CFG_PATH" ]]; then
+    CMD+=(--loss-cfg "$LOSS_CFG_PATH")
+  fi
+
+  if [[ -n "$NOISE_ENCODER_BACKBONE" ]]; then
+    CMD+=(--noise-encoder-backbone "$NOISE_ENCODER_BACKBONE")
+  fi
+
+  if [[ -n "$NOISE_ENCODER_CFG_PATH" ]]; then
+    CMD+=(--noise-encoder-cfg "$NOISE_ENCODER_CFG_PATH")
+  fi
+
+  if [[ -n "$TRANSIENT_ENCODER_BACKBONE" ]]; then
+    CMD+=(--transient-encoder-backbone "$TRANSIENT_ENCODER_BACKBONE")
+  fi
+
   if [[ "$SAVE_TARGET" == "on" ]]; then
     CMD+=(--save-target)
   fi
@@ -66,6 +136,9 @@ for DATA_CFG in "${PACK_CFGS[@]}"; do
 
   printf '[test_per_pack.sh] pack: %s\n' "$pack_name"
   printf '[test_per_pack.sh] output: %s\n' "$output_dir"
+  printf '[test_per_pack.sh] loss mode: %s\n' "$LOSS_MODE"
+  printf '[test_per_pack.sh] noise encoder mode: %s\n' "$NOISE_ENCODER_MODE"
+  printf '[test_per_pack.sh] transient encoder mode: %s\n' "$TRANSIENT_ENCODER_MODE"
   "${CMD[@]}"
 done
 
