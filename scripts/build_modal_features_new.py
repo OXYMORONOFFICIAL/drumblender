@@ -124,6 +124,22 @@ def choose_mp_context() -> mp.context.BaseContext:
     return mp.get_context("spawn")
 
 
+def resolve_source_flat_dir(
+    source_dataset_dir: Path,
+    source_meta_name: str,
+) -> Path | None:
+    direct_meta = source_dataset_dir / source_meta_name
+    if direct_meta.exists():
+        return source_dataset_dir
+
+    nested_dir = source_dataset_dir / "modal_features" / "processed_modal_flat"
+    nested_meta = nested_dir / source_meta_name
+    if nested_meta.exists():
+        return nested_dir
+
+    return None
+
+
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
         description=(
@@ -153,13 +169,13 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument(
         "--processed_root",
         type=str,
-        default="../datasets/processed",
+        default="../dataset_old/processed",
         help="Source preprocessed audio root used when source_dataset_dir is unavailable.",
     )
     ap.add_argument(
         "--out_dir",
         type=str,
-        default="../dataset",
+        default="../dataset/modal_features/processed_modal_flat",
         help="Output directory for the rebuilt flat dataset.",
     )
     ap.add_argument("--meta_name", type=str, default="metadata.json")
@@ -383,6 +399,24 @@ def materialize_tree(src_root: Path, dst_root: Path) -> None:
             dst.mkdir(parents=True, exist_ok=True)
             continue
         fast_materialize_audio_file(src, dst)
+
+
+def materialize_audio_from_metadata(
+    source_flat_dir: Path,
+    out_dir: Path,
+    source_meta: Dict[str, Dict],
+) -> None:
+    seen: set[str] = set()
+    for item in source_meta.values():
+        filename = str(item.get("filename", "")).strip()
+        if not filename or filename in seen:
+            continue
+        src = (source_flat_dir / filename).resolve()
+        dst = out_dir / filename
+        if not src.exists():
+            raise FileNotFoundError(src)
+        fast_materialize_audio_file(src, dst)
+        seen.add(filename)
 
 
 def fast_materialize_audio_file(src: Path, dst: Path) -> None:
@@ -668,15 +702,22 @@ def main() -> None:
     skipped_existing = 0
     total_items = 0
     source_dataset_dir = Path(args.source_dataset_dir)
-    source_meta_path = source_dataset_dir / args.source_meta_name
-    use_source_dataset = source_dataset_dir.exists() and source_meta_path.exists()
-    processed_root = source_dataset_dir if use_source_dataset else Path(args.processed_root)
+    source_flat_dir = resolve_source_flat_dir(source_dataset_dir, args.source_meta_name)
+    use_source_dataset = source_flat_dir is not None
+    source_meta_path = (
+        source_flat_dir / args.source_meta_name
+        if source_flat_dir is not None
+        else source_dataset_dir / args.source_meta_name
+    )
+    processed_root = Path(args.processed_root)
 
     if use_source_dataset:
         source_meta = load_existing_metadata(source_meta_path)
-        source_audio_dir = source_dataset_dir / "audio"
 
-        print(f"[scan] source_dataset={source_dataset_dir} -> {len(source_meta)} items")
+        print(
+            f"[scan] source_dataset={source_dataset_dir} "
+            f"(flat={source_flat_dir}) -> {len(source_meta)} items"
+        )
         print(f"[out]  {out_dir}")
         print(
             f"[mode] source_dataset copy_audio={args.copy_audio} "
@@ -685,11 +726,7 @@ def main() -> None:
         )
 
         if args.copy_audio:
-            dst_audio_dir = out_dir / "audio"
-            if args.overwrite and dst_audio_dir.exists():
-                shutil.rmtree(dst_audio_dir)
-            if not dst_audio_dir.exists():
-                materialize_tree(source_audio_dir, dst_audio_dir)
+            materialize_audio_from_metadata(source_flat_dir, out_dir, source_meta)
 
         ordered_items = sorted(source_meta.items(), key=lambda kv: kv[0])
         if args.max_files and args.max_files > 0:
@@ -699,7 +736,7 @@ def main() -> None:
         for key, item in ordered_items:
             filename = str(item["filename"])
             feature_file = str(item.get("feature_file", build_feature_relpath(key)))
-            wav_path = source_dataset_dir / filename
+            wav_path = (source_flat_dir / filename).resolve()
             rel = Path(item.get("orig_relpath", filename))
             feat_path = out_dir / feature_file
             audio_path = out_dir / filename
