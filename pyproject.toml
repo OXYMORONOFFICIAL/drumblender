@@ -36,5 +36,5 @@ drumblender-synth = "drumblender.cli:inference"
 
 [project.optional-dependencies]
 dev = ["black", "flake8", "pytest", "pytest-mock", "pyfakefs", "pre-commit", "pytest-cov"]
-modal = ["nnAudio>=0.3,<1"]
+modal = ["nnAudio>=0.3,<1", "scipy>=1.10,<2"]
 modal_new = ["nnAudio>=0.3,<1", "scipy>=1.10,<2"]

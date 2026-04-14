@@ -4,17 +4,12 @@ Based on Sinusoidal Modeling Synthesis (SMS) Toolbox by Xavier Serra and Julius 
 Uses the nnAudio CQT implementation for better resolution with low frequncies.
 Integrated with Frequency-Axis Median Saliency for robust percussive modal extraction.
 """
-from typing import List
-from typing import Optional
-from typing import Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 import torch
 from scipy.ndimage import median_filter
 
-# nnAudio may not be installed -- some of the methods will not work here,
-# but they are only required for pre-processing the audio so we won't
-# raise an error, unless the user tries to use a method that requires nnAudio
 try:
     import nnAudio.features as features
 except ImportError:
@@ -36,22 +31,6 @@ class CQTModalAnalysis:
         p_kernel: int = 21,  # Width of the frequency-axis median filter
         **kwargs,
     ) -> None:
-        """
-        Class for performing sinusoidal modelling using a CQT spectrogram.
-
-        Args:
-            sample_rate: Sample rate of the incoming audio
-            hop_length: Hop length of the CQT spectrogram
-            fmin: Minimum frequency of the CQT spectrogram
-            n_bins: Number of bins in the CQT spectrogram
-            bins_per_octave: Number of bins per octave in the CQT spectrogram
-            min_length: Minimum length of a track in frames
-            num_modes: Number of modes to return. If None, will return all
-            threshold: Threshold for amplitude in dB for a mode to be considered
-            diff_threshold: Peak matching threshold percentage
-            p_kernel: Kernel size for the vertical median filter (saliency)
-            **kwargs: Additional keyword arguments to pass to the nnAudio CQT
-        """
 
         if features is None:
             raise ImportError(
@@ -84,37 +63,32 @@ class CQTModalAnalysis:
         self,
         audio: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        """
-        Performs modal analysis on a batch of audio waveforms
-
-        Args:
-            audio: Audio waveform of shape (batch, samples)
-
-        Returns:
-            Tuple of (frequencies, amplitudes, phases) of shape (batch, modes, frames)
-        """
 
         assert audio.ndim == 2, "Audio must be a batch of waveforms"
         x = self.spectrogram(audio, complex=True)
         (_, _, num_hops, _) = x.shape
 
-        # After nnAudio spectrogram, everything is on the CPU with numpy
         x = x.cpu().numpy()
 
-        # For each item in the batch perform modal tracking
         batch_freqs = []
         batch_amps = []
         batch_phases = []
+        
         for i in range(x.shape[0]):
             freqs, amps, phases = self.modal_tracking(x[i], threshold=self.threshold)
             freqs, amps, phases = self.create_modal_tensors(
                 freqs, amps, phases, num_hops=num_hops, min_length=self.min_length
             )
 
+            # [수정됨] 패딩된 빈 프레임(0)을 기록해둡니다.
+            active_mask = (freqs > 0).float()
+
             # Convert to Hz
             freqs = torch.pow(2.0, freqs / self.bins_per_octave) * self.fmin
+            
+            # [수정됨] 패딩된 영역이 24.0Hz로 둔갑하지 않도록 다시 0.0Hz로 강제 처리
+            freqs = freqs * active_mask
 
-            # Filter out modes
             if self.num_modes is not None:
                 modal_energy = amps.sum(dim=1)
                 modal_energy, idx = torch.sort(modal_energy, descending=True)
@@ -132,147 +106,79 @@ class CQTModalAnalysis:
         return batch_freqs, batch_amps, batch_phases
 
     def spectrogram(self, audio: torch.Tensor, complex: bool = True) -> torch.Tensor:
-        """
-        CQT spectrogram of the audio
-
-        Args:
-            audio: Audio waveform of shape (batch, samples)
-            complex: Whether to return a complex spectrogram, or a magnitude spectrogram
-
-        Returns:
-            A complex CQT spectrogram of shape (batch, bins, frames, 2) or a magnitude
-            spectrogram of shape (batch, bins, frames) if complex is false
-        """
         x = self.cqt(audio, normalization_type="wrap")
         if not complex:
             x = torch.sqrt(torch.sum(torch.square(x), dim=-1))
-
         return x
 
     def modal_tracking(
         self, spec: np.ndarray, threshold: float = -20.0
     ) -> Tuple[List[List[float]], List[List[float]], List[List[float]]]:
-        """
-        Performs modal tracking on a CQT spectrogram using Frequency-Axis
-        Median Saliency to reject broad noise (cymbals) while perfectly
-        preserving isolated modes (kicks/toms) across reverse-time tracking.
-
-        Args:
-            spec: A complex CQT spectrogram of shape (bins, frames, 2)
-            threshold: Threshold for peak detection in dB
-
-        Returns:
-            Tuple of (frequencies, amplitudes, phases) of shape (modes, frames)
-        """
 
         assert spec.ndim == 3, "Spectrogram must a complex spectrogram"
         assert spec.shape[-1] == 2, "Spectrogram must be complex"
 
-        # Reverse the spectrogram along the temporal axis
-        # Assuming percussive audio here and that the most
-        # important modes will have the longest decay
-        spec = np.ascontiguousarray(np.flip(spec, axis=1), dtype=np.float32)
-        n_frames = spec.shape[1]
-        diff_threshold = self.diff_threshold
+        # 역방향 추적 유지 (Percussive audio decay 대응)
+        spec = np.flip(spec, axis=1)
 
-        # =====================================================================
-        # NEW: PRE-COMPUTE SALIENCY MAP
-        # =====================================================================
-        # 1. Get full magnitude spectrogram across all frames
-        spec_real = spec[..., 0]
-        spec_imag = spec[..., 1]
-        X_mag_full = np.hypot(spec_real, spec_imag).astype(np.float32, copy=False)
-        X_phase_full = np.arctan2(spec_imag, spec_real).astype(np.float32, copy=False)
+        X_mag_full = np.sqrt(np.sum(np.square(spec), axis=-1))
+        B = median_filter(X_mag_full, size=(self.p_kernel, 1))
+        S = np.maximum(0, X_mag_full - B)
+        S_db_full = 20.0 * np.log10(S + 1e-8)
 
-        # 2. Calculate dynamic noise floor using a vertical (frequency) median filter
-        B = median_filter(X_mag_full, size=(self.p_kernel, 1)).astype(
-            np.float32, copy=False
-        )
-
-        # 3. Subtract background from original magnitude to get Saliency map 'S'
-        S_db_full = X_mag_full - B
-        np.maximum(S_db_full, 1e-8, out=S_db_full)
-
-        # 4. Convert the Saliency map to dB for peak picking
-        np.log10(S_db_full, out=S_db_full)
-        S_db_full *= 20.0
-        # =====================================================================
-
-        peak_mask = peak_detection_fast(S_db_full, threshold)
-
-        # Initialize lists to store each mode's frequency, amplitude, and phase
         freqs = []
         amps = []
         phases = []
 
-        # Select modes from the spectrogram
-        for i in range(n_frames):
-            peaks = np.flatnonzero(peak_mask[:, i]) + 1
-            if peaks.size == 0:
+        for i in range(spec.shape[1]):
+            frame = spec[:, i]
+            X_mag = X_mag_full[:, i]
+            X_phase = np.arctan2(frame[:, 1], frame[:, 0])
+            frame_S_db = S_db_full[:, i]
+
+            peaks = peak_detection(frame_S_db, threshold)
+            if len(peaks) == 0:
                 continue
 
-            X_mag = X_mag_full[:, i]
-            X_phase = X_phase_full[:, i]
-
-            # Interpolate parameters using the TRUE audio magnitudes/phases
             peaks_loc, peaks_mag, peaks_phase = peak_interpolation(
                 X_mag, X_phase, peaks
             )
 
-            # Initialize modes
             if len(freqs) == 0:
                 freqs.append(list(peaks_loc))
                 amps.append(list(peaks_mag))
                 phases.append(list(peaks_phase))
                 continue
 
-            # Try to continue the mode from the previous frame
-            remaining = int(peaks_loc.size)
-            if remaining > 0:
-                available = np.ones(remaining, dtype=bool)
-            else:
-                available = None
-
             for j in range(len(freqs)):
-                if remaining > 0:
-                    # Find difference between previous peak and current peaks
+                if len(peaks_loc) > 0:
                     prev_freq = freqs[j][-1]
                     peak_diff = np.abs(peaks_loc - prev_freq)
-                    peak_diff[~available] = np.inf
 
-                    # If the difference is less than the threshold of the previous
-                    # frequency, then we assume that the peak is the same mode
-                    closest_peak = int(np.argmin(peak_diff))
-                    if peak_diff[closest_peak] < prev_freq * diff_threshold:
+                    if np.min(peak_diff) < prev_freq * self.diff_threshold:
+                        closest_peak = np.argmin(peak_diff)
                         freqs[j].append(peaks_loc[closest_peak])
                         amps[j].append(peaks_mag[closest_peak])
                         phases[j].append(peaks_phase[closest_peak])
 
-                        available[closest_peak] = False
-                        remaining -= 1
+                        peaks_loc = np.delete(peaks_loc, closest_peak)
+                        peaks_mag = np.delete(peaks_mag, closest_peak)
+                        peaks_phase = np.delete(peaks_phase, closest_peak)
                     else:
-                        # No good matching peaks, just copy the last peak, but
-                        # with an amplitude of 0.
                         freqs[j].append(freqs[j][-1])
                         amps[j].append(0.0)
                         phases[j].append(phases[j][-1])
                 else:
-                    # If there are no more peaks, just copy the last peak
                     freqs[j].append(freqs[j][-1])
                     amps[j].append(0.0)
                     phases[j].append(phases[j][-1])
 
-            # Add any remaining peaks as new modes
-            if remaining > 0:
-                new_peak_idx = np.flatnonzero(available)
-                for peak in peaks_loc[new_peak_idx]:
-                    freqs.append([peak])
-
-                for peak in peaks_mag[new_peak_idx]:
-                    amps.append([peak])
-
-                for peak in peaks_phase[new_peak_idx]:
-                    phases.append([peak])
+            for peak in peaks_loc:
+                freqs.append([peak])
+            for peak in peaks_mag:
+                amps.append([peak])
+            for peak in peaks_phase:
+                phases.append([peak])
 
         return freqs, amps, phases
 
@@ -284,22 +190,6 @@ class CQTModalAnalysis:
         num_hops: int,
         min_length: int,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        """
-        Converts lists of modal freqs, amps, and phases into
-        tensors of shape (modes, num_hops). Input lists will be of
-        different lengths so they will be padded with zeros to be of length num_hops.
-        Modes are also filtered out if they are shorter than min_length.
-
-        Args:
-            freqs: List of list of frequencies of shape (modes, frames)
-            amps: List of list of amplitudes of shape (modes, frames)
-            phases: List of list of phases of shape (modes, frames)
-            num_hops: Number of frames in the spectrogram
-            min_length: Minimum length of a mode to be included
-
-        Returns:
-            Tuple of (frequencies, amplitudes, phases) of shape (modes, num_hops)
-        """
 
         num_modes = len(freqs)
         freq_env = []
@@ -307,7 +197,6 @@ class CQTModalAnalysis:
         phase_env = []
 
         for i in range(num_modes):
-            # Check if the mode is long enough
             if len(freqs[i]) < min_length:
                 continue
 
@@ -333,8 +222,7 @@ class CQTModalAnalysis:
                 )
 
         if not freq_env:
-            empty = torch.zeros((0, num_hops))
-            return empty, empty.clone(), empty.clone()
+            return torch.zeros((0, num_hops)), torch.zeros((0, num_hops)), torch.zeros((0, num_hops))
 
         freq_env = torch.stack(freq_env)
         amp_env = torch.stack(amp_env)
@@ -343,38 +231,18 @@ class CQTModalAnalysis:
         return freq_env, amp_env, phase_env
 
     def frequencies(self) -> np.ndarray:
-        """
-        Returns the frequencies of the CQT bins
-        """
         return self.cqt.frequencies
 
 
 def peak_detection(
-    x: np.ndarray,  # magnitude spectrum
-    threshold: float,  # threshold
+    x: np.ndarray,
+    threshold: float,
 ) -> np.ndarray:
-    """
-    Detect spectral peak locations
-    From: https://github.com/MTG/sms-tools
-
-    Args:
-        x: magnitude spectrum
-        threshold: threshold for peak picking
-
-    Returns:
-        Peak locations
-    """
-    thresh = np.where(
-        np.greater(x[1:-1], threshold), x[1:-1], 0
-    )  # locations above threshold
-    next_minor = np.where(
-        x[1:-1] > x[2:], x[1:-1], 0
-    )  # locations higher than the next one
-    prev_minor = np.where(
-        x[1:-1] > x[:-2], x[1:-1], 0
-    )  # locations higher than the previous one
-    ploc = thresh * next_minor * prev_minor  # locations fulfilling the three criteria
-    ploc = ploc.nonzero()[0] + 1  # add 1 to compensate for previous steps
+    thresh = np.where(np.greater(x[1:-1], threshold), x[1:-1], 0)
+    next_minor = np.where(x[1:-1] > x[2:], x[1:-1], 0)
+    prev_minor = np.where(x[1:-1] > x[:-2], x[1:-1], 0)
+    ploc = thresh * next_minor * prev_minor
+    ploc = ploc.nonzero()[0] + 1
     return ploc
 
 
@@ -384,41 +252,25 @@ def peak_interpolation(
     ploc: np.ndarray,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
-    Interpolate peak values using parabolic interpolation
-    From: https://github.com/MTG/sms-tools
-
-    Args:
-        magnitude: magnitude spectrum
-        phase: phase spectrum
-        ploc: peak locations
-
-    Returns:
-        Interpolated peak locations, magnitudes, and phases
+    Parabolic interpolation for sub-bin precision (with numerical stabilization).
     """
-    # Magnitude of the peak bin and its neighbours
     val = magnitude[ploc]
     lval = magnitude[ploc - 1]
     rval = magnitude[ploc + 1]
 
-    # Parabolic interpolation
-    iploc = ploc + 0.5 * (lval - rval) / (lval - 2 * val + rval + 1e-8)
-    ipmag = val - 0.25 * (lval - rval) * (iploc - ploc)
-    left = np.clip(np.floor(iploc).astype(np.int32), 0, phase.size - 1)
-    right = np.minimum(left + 1, phase.size - 1)
-    frac = iploc - left
-    ipphase = phase[left] + frac * (phase[right] - phase[left])
+    # [수정됨] 수치 안정화 패치 (NaN, Inf 방지)
+    denominator = lval - 2 * val + rval
+    
+    shift = np.zeros_like(ploc, dtype=np.float32)
+    valid_mask = np.abs(denominator) > 1e-6
+    
+    if np.any(valid_mask):
+        shift[valid_mask] = 0.5 * (lval[valid_mask] - rval[valid_mask]) / denominator[valid_mask]
+    
+    shift = np.clip(shift, -0.5, 0.5)
+
+    iploc = ploc + shift
+    ipmag = val - 0.25 * (lval - rval) * shift
+    ipphase = np.interp(iploc, np.arange(0, phase.size), phase)
 
     return iploc, ipmag, ipphase
-
-
-def peak_detection_fast(x: np.ndarray, threshold: float) -> np.ndarray:
-    """
-    Detect spectral peak locations over all frames at once.
-
-    Returns:
-        Boolean mask of shape (bins - 2, frames) corresponding to x[1:-1].
-    """
-    center = x[1:-1]
-    prev_ = x[:-2]
-    next_ = x[2:]
-    return (center > threshold) & (center > prev_) & (center > next_)

@@ -8,6 +8,7 @@ import multiprocessing as mp
 import os
 import queue
 import re
+import shutil
 from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import as_completed
@@ -19,7 +20,10 @@ import torch
 import torchaudio
 from tqdm import tqdm
 
-from drumblender.utils.modal_analysis_new import CQTModalAnalysis
+try:
+    from drumblender.utils.modal_analysis_NEW import CQTModalAnalysis
+except ImportError:
+    from drumblender.utils.modal_analysis_new import CQTModalAnalysis
 
 
 _WORKER_CFG: Dict | None = None
@@ -106,11 +110,18 @@ def make_splits_within_pack(
 
 def default_num_workers() -> int:
     cpu_count = os.cpu_count() or 1
-    return max(1, min(8, cpu_count - 1 if cpu_count > 1 else 1))
+    return max(1, cpu_count - 1 if cpu_count > 1 else 1)
 
 
 def default_chunk_size() -> int:
     return 32
+
+
+def choose_mp_context() -> mp.context.BaseContext:
+    methods = mp.get_all_start_methods()
+    if os.name != "nt" and "fork" in methods:
+        return mp.get_context("fork")
+    return mp.get_context("spawn")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -144,6 +155,7 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--bins_per_octave", type=int, default=24)
     ap.add_argument("--min_length", type=int, default=10)
     ap.add_argument("--threshold_db", type=float, default=-80.0)
+    ap.add_argument("--diff_threshold", type=float, default=5.0)
 
     ap.add_argument("--mask_threshold", type=float, default=0.8)
     ap.add_argument("--kalman_k", type=float, default=0.4)
@@ -216,7 +228,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_false",
         help="Do not copy audio; metadata points back to processed_root audio paths.",
     )
-    ap.set_defaults(copy_audio=False)
+    ap.set_defaults(copy_audio=True)
     ap.add_argument(
         "--overwrite",
         action="store_true",
@@ -244,6 +256,7 @@ def make_worker_config(args: argparse.Namespace, processed_root: Path, out_dir: 
         "bins_per_octave": int(args.bins_per_octave),
         "min_length": int(args.min_length),
         "threshold_db": float(args.threshold_db),
+        "diff_threshold": float(args.diff_threshold),
         "mask_threshold": float(args.mask_threshold),
         "kalman_k": float(args.kalman_k),
         "kalman_kv": float(args.kalman_kv),
@@ -264,6 +277,10 @@ def init_worker(cfg: Dict, progress_queue=None) -> None:
     _WORKER_MODAL = None
     _WORKER_PROGRESS_QUEUE = progress_queue
 
+    os.environ.setdefault("OMP_NUM_THREADS", "1")
+    os.environ.setdefault("MKL_NUM_THREADS", "1")
+    os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+    os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
     torch.set_num_threads(1)
     try:
         torch.set_num_interop_threads(1)
@@ -281,6 +298,7 @@ def build_modal_from_cfg(cfg: Dict) -> CQTModalAnalysis:
         min_length=cfg["min_length"],
         num_modes=cfg["num_modes"],
         threshold=cfg["threshold_db"],
+        diff_threshold=cfg["diff_threshold"],
         p_kernel=cfg["p_kernel"],
     )
 
@@ -334,6 +352,52 @@ def build_feature_relpath(key: str) -> Path:
 
 def build_audio_relpath(key: str) -> Path:
     return Path("audio") / f"{key}.wav"
+
+
+def fast_materialize_audio_file(src: Path, dst: Path) -> None:
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    if dst.exists():
+        dst.unlink()
+
+    try:
+        os.link(src, dst)
+        return
+    except OSError:
+        pass
+
+    shutil.copy2(src, dst)
+
+
+def write_audio_output(
+    wav_path: Path,
+    audio_path: Path,
+    cfg: Dict,
+    wav: torch.Tensor | None = None,
+    sample_rate: int | None = None,
+    original_channels: int | None = None,
+) -> None:
+    fast_path_ok = (
+        cfg["pad_to"] <= 0
+        and sample_rate == cfg["sample_rate"]
+        and original_channels == 1
+    )
+
+    if fast_path_ok:
+        fast_materialize_audio_file(wav_path, audio_path)
+        return
+
+    if wav is None or sample_rate is None:
+        wav, sample_rate = torchaudio.load(str(wav_path))
+
+    if sample_rate != cfg["sample_rate"]:
+        raise ValueError(
+            f"sample_rate mismatch: {sample_rate} != {cfg['sample_rate']} for {wav_path}"
+        )
+
+    wav = wav[:1, :]
+    if cfg["pad_to"] > 0:
+        wav = right_pad_to(wav, cfg["pad_to"])
+    torchaudio.save(str(audio_path), wav, cfg["sample_rate"])
 
 
 def extract_feat_from_waveform(w: torch.Tensor, modal: CQTModalAnalysis, cfg: Dict) -> torch.Tensor:
@@ -441,13 +505,14 @@ def process_one_common(job: Dict, cfg: Dict, modal: CQTModalAnalysis) -> Dict:
                 num_samples_hint = int(torchaudio.info(str(wav_path)).num_frames)
             meta_item = build_metadata_item(job, cfg, rel, key, num_samples_hint)
             if cfg["copy_audio"] and (not audio_path.exists()):
-                wav, sr = torchaudio.load(str(wav_path))
-                if sr != cfg["sample_rate"]:
-                    raise ValueError(
-                        f"sample_rate mismatch: {sr} != {cfg['sample_rate']} for {rel}"
-                    )
-                wav = wav[:1, :]
-                torchaudio.save(str(audio_path), wav, cfg["sample_rate"])
+                info = torchaudio.info(str(wav_path))
+                write_audio_output(
+                    wav_path=wav_path,
+                    audio_path=audio_path,
+                    cfg=cfg,
+                    sample_rate=int(info.sample_rate),
+                    original_channels=int(info.num_channels),
+                )
             return {"ok": True, "key": key, "meta_item": meta_item, "skipped": True}
 
         wav, sr = torchaudio.load(str(wav_path))
@@ -459,6 +524,7 @@ def process_one_common(job: Dict, cfg: Dict, modal: CQTModalAnalysis) -> Dict:
             )
         if wav.shape[0] == 0:
             raise ValueError("empty channel dim")
+        original_channels = int(wav.shape[0])
         wav = wav[:1, :]
 
         if cfg["min_duration_ms"] > 0:
@@ -491,7 +557,14 @@ def process_one_common(job: Dict, cfg: Dict, modal: CQTModalAnalysis) -> Dict:
         torch.save(feat, feat_path)
 
         if cfg["copy_audio"]:
-            torchaudio.save(str(audio_path), wav, cfg["sample_rate"])
+            write_audio_output(
+                wav_path=wav_path,
+                audio_path=audio_path,
+                cfg=cfg,
+                wav=wav,
+                sample_rate=sr,
+                original_channels=original_channels,
+            )
 
         meta_item = build_metadata_item(job, cfg, rel, key, int(wav.shape[-1]))
         return {"ok": True, "key": key, "meta_item": meta_item, "skipped": False}
@@ -653,7 +726,7 @@ def main() -> None:
         stop_event = threading.Event()
         progress_queue = None
         try:
-            ctx = mp.get_context("spawn")
+            ctx = choose_mp_context()
             progress_queue = ctx.Queue()
             progress_thread = threading.Thread(
                 target=consume_progress,
