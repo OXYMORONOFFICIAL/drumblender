@@ -281,11 +281,6 @@ def build_modal_from_cfg(cfg: Dict) -> CQTModalAnalysis:
         min_length=cfg["min_length"],
         num_modes=cfg["num_modes"],
         threshold=cfg["threshold_db"],
-        mask_threshold=cfg["mask_threshold"],
-        kalman_k=cfg["kalman_k"],
-        kalman_kv=cfg["kalman_kv"],
-        confidence_threshold=cfg["confidence_threshold"],
-        h_kernel=cfg["h_kernel"],
         p_kernel=cfg["p_kernel"],
     )
 
