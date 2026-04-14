@@ -128,22 +128,39 @@ def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
         description=(
             "Build modal features with the new saliency-based modal tracker. "
-            "Optimized for faster preprocessing via optional audio-copy skipping "
-            "and multiprocessing."
+            "Can either scan a processed wav tree or rebuild features from an "
+            "existing flat dataset (for example dataset_old -> dataset) while "
+            "preserving the original audio/metadata layout."
         )
     )
 
     ap.add_argument(
+        "--source_dataset_dir",
+        type=str,
+        default="../dataset_old",
+        help=(
+            "Existing flat dataset root to clone/rebuild from. "
+            "If this path exists and contains metadata.json, its audio/metadata "
+            "layout is preserved and only modal features are regenerated."
+        ),
+    )
+    ap.add_argument(
+        "--source_meta_name",
+        type=str,
+        default="metadata.json",
+        help="Metadata filename inside source_dataset_dir.",
+    )
+    ap.add_argument(
         "--processed_root",
         type=str,
         default="../datasets/processed",
-        help="Source preprocessed audio root.",
+        help="Source preprocessed audio root used when source_dataset_dir is unavailable.",
     )
     ap.add_argument(
         "--out_dir",
         type=str,
-        default="../datasets/modal_features/processed_modal_flat",
-        help="Output directory for flat modal-feature dataset.",
+        default="../dataset",
+        help="Output directory for the rebuilt flat dataset.",
     )
     ap.add_argument("--meta_name", type=str, default="metadata.json")
 
@@ -354,6 +371,20 @@ def build_audio_relpath(key: str) -> Path:
     return Path("audio") / f"{key}.wav"
 
 
+def materialize_tree(src_root: Path, dst_root: Path) -> None:
+    if not src_root.exists():
+        raise FileNotFoundError(src_root)
+
+    dst_root.mkdir(parents=True, exist_ok=True)
+    for src in src_root.rglob("*"):
+        rel = src.relative_to(src_root)
+        dst = dst_root / rel
+        if src.is_dir():
+            dst.mkdir(parents=True, exist_ok=True)
+            continue
+        fast_materialize_audio_file(src, dst)
+
+
 def fast_materialize_audio_file(src: Path, dst: Path) -> None:
     dst.parent.mkdir(parents=True, exist_ok=True)
     if dst.exists():
@@ -414,6 +445,15 @@ def extract_feat_from_waveform(w: torch.Tensor, modal: CQTModalAnalysis, cfg: Di
 
 
 def build_metadata_item(job: Dict, cfg: Dict, rel: Path, key: str, num_samples: int) -> Dict:
+    source_meta_item = job.get("source_meta_item")
+    if source_meta_item is not None:
+        meta_item = dict(source_meta_item)
+        meta_item["feature_file"] = str(job["feature_relpath"])
+        meta_item["num_samples"] = int(num_samples)
+        if "orig_relpath" not in meta_item:
+            meta_item["orig_relpath"] = str(rel)
+        return meta_item
+
     out_dir = Path(cfg["out_dir"])
     wav_path = Path(job["wav_path"])
     feat_rel = build_feature_relpath(key)
@@ -490,13 +530,17 @@ def process_one_common(job: Dict, cfg: Dict, modal: CQTModalAnalysis) -> Dict:
     processed_root = Path(cfg["processed_root"])
     out_dir = Path(cfg["out_dir"])
     wav_path = Path(job["wav_path"])
-    rel = wav_path.relative_to(processed_root)
+    rel_hint = job.get("rel_hint")
+    if rel_hint is not None:
+        rel = Path(rel_hint)
+    else:
+        rel = wav_path.relative_to(processed_root)
     key = job["key"]
 
     try:
-        feat_rel = build_feature_relpath(key)
+        feat_rel = Path(job.get("feature_relpath", build_feature_relpath(key)))
         feat_path = out_dir / feat_rel
-        audio_rel = build_audio_relpath(key)
+        audio_rel = Path(job.get("audio_relpath", build_audio_relpath(key)))
         audio_path = out_dir / audio_rel
 
         if (not cfg["overwrite"]) and feat_path.exists():
@@ -611,74 +655,141 @@ def process_chunk_threaded(jobs: List[Dict], cfg: Dict, progress_queue=None) -> 
 def main() -> None:
     args = build_parser().parse_args()
 
-    processed_root = Path(args.processed_root)
-    if not processed_root.exists():
-        raise FileNotFoundError(processed_root)
-
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     feat_dir = out_dir / "features"
     feat_dir.mkdir(parents=True, exist_ok=True)
-    if args.copy_audio:
-        (out_dir / "audio").mkdir(parents=True, exist_ok=True)
     meta_path = out_dir / args.meta_name
 
-    wavs = list_wavs(processed_root)
-    if args.max_files and args.max_files > 0:
-        wavs = wavs[: args.max_files]
-
-    print(f"[scan] {processed_root} -> {len(wavs)} wavs")
-    print(f"[out]  {out_dir}")
-    print(
-        f"[mode] copy_audio={args.copy_audio} num_workers={args.num_workers} "
-        f"chunk_size={args.chunk_size} overwrite={args.overwrite}"
-    )
-    if len(wavs) == 0:
-        raise RuntimeError("No wavs found.")
-
     existing_meta = load_existing_metadata(meta_path) if (not args.overwrite) else {}
-    typed: List[Tuple[str, str, str]] = []
-    packs: List[str] = []
-    for wav_path in wavs:
-        type_name, inst_name, pack = make_pack_key(
-            processed_root,
-            wav_path,
-            pack_depth=args.pack_depth,
-        )
-        typed.append((type_name, inst_name, pack))
-        packs.append(pack)
-
-    split_by_index = None
-    if args.write_split:
-        split_by_index = make_splits_within_pack(packs, seed=args.seed)
 
     jobs = []
     meta: Dict[str, Dict] = dict(existing_meta)
     skipped_existing = 0
-    for idx, (wav_path, (type_name, inst_name, pack)) in enumerate(zip(wavs, typed)):
-        rel = wav_path.relative_to(processed_root)
-        key = stable_id(str(rel))
-        job = {
-            "key": key,
-            "wav_path": str(wav_path),
-            "type_name": type_name,
-            "inst_name": inst_name,
-            "pack": pack,
-            "split": None if split_by_index is None else split_by_index[idx],
-            "num_samples_hint": None,
-        }
-        feat_path = out_dir / build_feature_relpath(key)
-        audio_path = out_dir / build_audio_relpath(key)
-        if (
-            (not args.overwrite)
-            and key in existing_meta
-            and feat_path.exists()
-            and ((not args.copy_audio) or audio_path.exists())
-        ):
-            meta[key] = existing_meta[key]
-            skipped_existing += 1
-            continue
-        jobs.append(job)
+    total_items = 0
+    source_dataset_dir = Path(args.source_dataset_dir)
+    source_meta_path = source_dataset_dir / args.source_meta_name
+    use_source_dataset = source_dataset_dir.exists() and source_meta_path.exists()
+    processed_root = source_dataset_dir if use_source_dataset else Path(args.processed_root)
+
+    if use_source_dataset:
+        source_meta = load_existing_metadata(source_meta_path)
+        source_audio_dir = source_dataset_dir / "audio"
+
+        print(f"[scan] source_dataset={source_dataset_dir} -> {len(source_meta)} items")
+        print(f"[out]  {out_dir}")
+        print(
+            f"[mode] source_dataset copy_audio={args.copy_audio} "
+            f"num_workers={args.num_workers} chunk_size={args.chunk_size} "
+            f"overwrite={args.overwrite}"
+        )
+
+        if args.copy_audio:
+            dst_audio_dir = out_dir / "audio"
+            if args.overwrite and dst_audio_dir.exists():
+                shutil.rmtree(dst_audio_dir)
+            if not dst_audio_dir.exists():
+                materialize_tree(source_audio_dir, dst_audio_dir)
+
+        ordered_items = sorted(source_meta.items(), key=lambda kv: kv[0])
+        if args.max_files and args.max_files > 0:
+            ordered_items = ordered_items[: args.max_files]
+        total_items = len(ordered_items)
+
+        for key, item in ordered_items:
+            filename = str(item["filename"])
+            feature_file = str(item.get("feature_file", build_feature_relpath(key)))
+            wav_path = source_dataset_dir / filename
+            rel = Path(item.get("orig_relpath", filename))
+            feat_path = out_dir / feature_file
+            audio_path = out_dir / filename
+
+            job = {
+                "key": key,
+                "wav_path": str(wav_path),
+                "type_name": item.get("type", "custom"),
+                "inst_name": item.get("instrument", "unlabeled"),
+                "pack": item.get("sample_pack_key", "__root__"),
+                "split": item.get("split"),
+                "num_samples_hint": item.get("num_samples"),
+                "feature_relpath": feature_file,
+                "audio_relpath": filename,
+                "source_meta_item": item,
+                "rel_hint": str(rel),
+            }
+
+            if (
+                (not args.overwrite)
+                and key in existing_meta
+                and feat_path.exists()
+                and ((not args.copy_audio) or audio_path.exists())
+            ):
+                meta[key] = existing_meta[key]
+                skipped_existing += 1
+                continue
+            jobs.append(job)
+    else:
+        if not processed_root.exists():
+            raise FileNotFoundError(processed_root)
+
+        wavs = list_wavs(processed_root)
+        if args.max_files and args.max_files > 0:
+            wavs = wavs[: args.max_files]
+        total_items = len(wavs)
+
+        print(f"[scan] {processed_root} -> {len(wavs)} wavs")
+        print(f"[out]  {out_dir}")
+        print(
+            f"[mode] processed_root copy_audio={args.copy_audio} "
+            f"num_workers={args.num_workers} chunk_size={args.chunk_size} "
+            f"overwrite={args.overwrite}"
+        )
+        if len(wavs) == 0:
+            raise RuntimeError("No wavs found.")
+
+        if args.copy_audio:
+            (out_dir / "audio").mkdir(parents=True, exist_ok=True)
+
+        typed: List[Tuple[str, str, str]] = []
+        packs: List[str] = []
+        for wav_path in wavs:
+            type_name, inst_name, pack = make_pack_key(
+                processed_root,
+                wav_path,
+                pack_depth=args.pack_depth,
+            )
+            typed.append((type_name, inst_name, pack))
+            packs.append(pack)
+
+        split_by_index = None
+        if args.write_split:
+            split_by_index = make_splits_within_pack(packs, seed=args.seed)
+
+        for idx, (wav_path, (type_name, inst_name, pack)) in enumerate(zip(wavs, typed)):
+            rel = wav_path.relative_to(processed_root)
+            key = stable_id(str(rel))
+            job = {
+                "key": key,
+                "wav_path": str(wav_path),
+                "type_name": type_name,
+                "inst_name": inst_name,
+                "pack": pack,
+                "split": None if split_by_index is None else split_by_index[idx],
+                "num_samples_hint": None,
+                "rel_hint": str(rel),
+            }
+            feat_path = out_dir / build_feature_relpath(key)
+            audio_path = out_dir / build_audio_relpath(key)
+            if (
+                (not args.overwrite)
+                and key in existing_meta
+                and feat_path.exists()
+                and ((not args.copy_audio) or audio_path.exists())
+            ):
+                meta[key] = existing_meta[key]
+                skipped_existing += 1
+                continue
+            jobs.append(job)
 
     worker_cfg = make_worker_config(args, processed_root, out_dir)
     failed = 0
@@ -706,7 +817,7 @@ def main() -> None:
 
     job_chunks = chunk_jobs(jobs, args.chunk_size)
     progress_bar = tqdm(
-        total=len(wavs),
+        total=total_items,
         initial=skipped_existing,
         desc="modal-new",
         unit="file",
