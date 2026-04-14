@@ -116,7 +116,7 @@ def default_chunk_size() -> int:
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
         description=(
-            "Build modal features with the new HPSS + Kalman + confidence tracker. "
+            "Build modal features with the new saliency-based modal tracker. "
             "Optimized for faster preprocessing via optional audio-copy skipping "
             "and multiprocessing."
         )
@@ -131,7 +131,7 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument(
         "--out_dir",
         type=str,
-        default="../datasets_new/modal_features/processed_modal_flat",
+        default="../datasets/modal_features",
         help="Output directory for flat modal-feature dataset.",
     )
     ap.add_argument("--meta_name", type=str, default="metadata.json")
