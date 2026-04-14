@@ -131,7 +131,7 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument(
         "--out_dir",
         type=str,
-        default="../datasets/modal_features",
+        default="../datasets/modal_features/processed_modal_flat",
         help="Output directory for flat modal-feature dataset.",
     )
     ap.add_argument("--meta_name", type=str, default="metadata.json")
