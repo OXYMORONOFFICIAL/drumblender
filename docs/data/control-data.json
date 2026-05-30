@@ -1,0 +1,162 @@
+{
+  "site_title": "DrumBlender Static Control Demo",
+  "generated_at_utc": "2026-05-28T15:57:12.899630+00:00",
+  "generated_from": "C:\\Users\\mindi\\Desktop\\results\\run_NOISEDAC_20260412_231956",
+  "module": "transient_pca",
+  "sample_rate": 48000,
+  "checkpoint": "C:\\Users\\mindi\\Desktop\\results\\run_NOISEDAC_20260412_231956\\all\\05_all_parallel_all\\checkpoints\\run_NOISEDAC_20260412_231956-epoch058-step00035282.ckpt",
+  "config": "C:\\Users\\mindi\\Desktop\\drumblender\\cfg\\05_all_parallel.yaml",
+  "data_dir": "C:\\Users\\mindi\\Desktop\\datasets\\modal_features\\processed_modal_flat",
+  "audio_dir": "C:\\Users\\mindi\\Desktop\\samples\\processed",
+  "demo_count": 4,
+  "demos": [
+    {
+      "id": "01-splice-esm-bkm-drum-kick-one-shot-saturated-round-punc-32b3b499",
+      "title": "splice control #1",
+      "module": "transient_pca",
+      "sample_index": 1186,
+      "source_filename": "splice/ESM_BKM_drum_kick_one_shot_saturated_round_punch_1.wav",
+      "pack": "splice",
+      "target": "media/control/01-splice-esm-bkm-drum-kick-one-shot-saturated-round-punc-32b3b499/target.wav",
+      "baseline": "media/control/01-splice-esm-bkm-drum-kick-one-shot-saturated-round-punc-32b3b499/reconstruction.wav",
+      "variants": [
+        {
+          "sigma": 0.0,
+          "label": "sigma=0.00",
+          "audio": "media/control/01-splice-esm-bkm-drum-kick-one-shot-saturated-round-punc-32b3b499/sigma-0.00.wav"
+        },
+        {
+          "sigma": 0.25,
+          "label": "sigma=0.25",
+          "audio": "media/control/01-splice-esm-bkm-drum-kick-one-shot-saturated-round-punc-32b3b499/sigma-0.25.wav"
+        },
+        {
+          "sigma": 0.5,
+          "label": "sigma=0.50",
+          "audio": "media/control/01-splice-esm-bkm-drum-kick-one-shot-saturated-round-punc-32b3b499/sigma-0.50.wav"
+        },
+        {
+          "sigma": 0.75,
+          "label": "sigma=0.75",
+          "audio": "media/control/01-splice-esm-bkm-drum-kick-one-shot-saturated-round-punc-32b3b499/sigma-0.75.wav"
+        },
+        {
+          "sigma": 1.0,
+          "label": "sigma=1.00",
+          "audio": "media/control/01-splice-esm-bkm-drum-kick-one-shot-saturated-round-punc-32b3b499/sigma-1.00.wav"
+        }
+      ]
+    },
+    {
+      "id": "02-splice-ma-slm-hat-closed-r5-chat-1wav-30562560",
+      "title": "splice control #2",
+      "module": "transient_pca",
+      "sample_index": 1330,
+      "source_filename": "splice/MA_SLM_Hat_Closed_R5_CHat_1.wav",
+      "pack": "splice",
+      "target": "media/control/02-splice-ma-slm-hat-closed-r5-chat-1wav-30562560/target.wav",
+      "baseline": "media/control/02-splice-ma-slm-hat-closed-r5-chat-1wav-30562560/reconstruction.wav",
+      "variants": [
+        {
+          "sigma": 0.0,
+          "label": "sigma=0.00",
+          "audio": "media/control/02-splice-ma-slm-hat-closed-r5-chat-1wav-30562560/sigma-0.00.wav"
+        },
+        {
+          "sigma": 0.25,
+          "label": "sigma=0.25",
+          "audio": "media/control/02-splice-ma-slm-hat-closed-r5-chat-1wav-30562560/sigma-0.25.wav"
+        },
+        {
+          "sigma": 0.5,
+          "label": "sigma=0.50",
+          "audio": "media/control/02-splice-ma-slm-hat-closed-r5-chat-1wav-30562560/sigma-0.50.wav"
+        },
+        {
+          "sigma": 0.75,
+          "label": "sigma=0.75",
+          "audio": "media/control/02-splice-ma-slm-hat-closed-r5-chat-1wav-30562560/sigma-0.75.wav"
+        },
+        {
+          "sigma": 1.0,
+          "label": "sigma=1.00",
+          "audio": "media/control/02-splice-ma-slm-hat-closed-r5-chat-1wav-30562560/sigma-1.00.wav"
+        }
+      ]
+    },
+    {
+      "id": "03-splice-esm-bkm-drum-hats-one-shot-tight-short-closed-1-3bef13b3",
+      "title": "splice control #3",
+      "module": "transient_pca",
+      "sample_index": 1275,
+      "source_filename": "splice/ESM_BKM_drum_hats_one_shot_tight_short_closed_1.wav",
+      "pack": "splice",
+      "target": "media/control/03-splice-esm-bkm-drum-hats-one-shot-tight-short-closed-1-3bef13b3/target.wav",
+      "baseline": "media/control/03-splice-esm-bkm-drum-hats-one-shot-tight-short-closed-1-3bef13b3/reconstruction.wav",
+      "variants": [
+        {
+          "sigma": 0.0,
+          "label": "sigma=0.00",
+          "audio": "media/control/03-splice-esm-bkm-drum-hats-one-shot-tight-short-closed-1-3bef13b3/sigma-0.00.wav"
+        },
+        {
+          "sigma": 0.25,
+          "label": "sigma=0.25",
+          "audio": "media/control/03-splice-esm-bkm-drum-hats-one-shot-tight-short-closed-1-3bef13b3/sigma-0.25.wav"
+        },
+        {
+          "sigma": 0.5,
+          "label": "sigma=0.50",
+          "audio": "media/control/03-splice-esm-bkm-drum-hats-one-shot-tight-short-closed-1-3bef13b3/sigma-0.50.wav"
+        },
+        {
+          "sigma": 0.75,
+          "label": "sigma=0.75",
+          "audio": "media/control/03-splice-esm-bkm-drum-hats-one-shot-tight-short-closed-1-3bef13b3/sigma-0.75.wav"
+        },
+        {
+          "sigma": 1.0,
+          "label": "sigma=1.00",
+          "audio": "media/control/03-splice-esm-bkm-drum-hats-one-shot-tight-short-closed-1-3bef13b3/sigma-1.00.wav"
+        }
+      ]
+    },
+    {
+      "id": "04-mdlib2-snare-strike-in-snare-strike-12232wav-86749995",
+      "title": "MDLib2 control #4",
+      "module": "transient_pca",
+      "sample_index": 391,
+      "source_filename": "MDLib2/Snare/Strike/IN_Snare_Strike_1223.2.wav",
+      "pack": "MDLib2",
+      "target": "media/control/04-mdlib2-snare-strike-in-snare-strike-12232wav-86749995/target.wav",
+      "baseline": "media/control/04-mdlib2-snare-strike-in-snare-strike-12232wav-86749995/reconstruction.wav",
+      "variants": [
+        {
+          "sigma": 0.0,
+          "label": "sigma=0.00",
+          "audio": "media/control/04-mdlib2-snare-strike-in-snare-strike-12232wav-86749995/sigma-0.00.wav"
+        },
+        {
+          "sigma": 0.25,
+          "label": "sigma=0.25",
+          "audio": "media/control/04-mdlib2-snare-strike-in-snare-strike-12232wav-86749995/sigma-0.25.wav"
+        },
+        {
+          "sigma": 0.5,
+          "label": "sigma=0.50",
+          "audio": "media/control/04-mdlib2-snare-strike-in-snare-strike-12232wav-86749995/sigma-0.50.wav"
+        },
+        {
+          "sigma": 0.75,
+          "label": "sigma=0.75",
+          "audio": "media/control/04-mdlib2-snare-strike-in-snare-strike-12232wav-86749995/sigma-0.75.wav"
+        },
+        {
+          "sigma": 1.0,
+          "label": "sigma=1.00",
+          "audio": "media/control/04-mdlib2-snare-strike-in-snare-strike-12232wav-86749995/sigma-1.00.wav"
+        }
+      ]
+    }
+  ]
+}

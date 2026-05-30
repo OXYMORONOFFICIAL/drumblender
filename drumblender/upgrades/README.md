@@ -26,8 +26,8 @@ This folder is for optional research upgrades only.
 
 ## Encoder backbone wiring
 - Runtime scripts support backbone selection per encoder path:
-  - `NOISE_ENCODER_BACKBONE=soundstream|dac|hybrid|apcodec`
-  - `TRANSIENT_ENCODER_BACKBONE=soundstream|dac|hybrid|apcodec`
+  - `NOISE_ENCODER_BACKBONE=soundstream|dac|wavtokenizer|bscodec|apcodec|spectrostream`
+  - `TRANSIENT_ENCODER_BACKBONE=soundstream|dac|wavtokenizer|bscodec|apcodec|spectrostream`
 - `soundstream` keeps baseline configs (no override).
 - Other values resolve to `cfg/upgrades/encoders/*_<backbone>_style.yaml`.
 - If the resolved config file does not exist, scripts fail fast with a clear error.

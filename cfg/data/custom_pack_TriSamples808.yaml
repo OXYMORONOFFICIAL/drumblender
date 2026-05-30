@@ -4,7 +4,7 @@ init_args:
   num_workers: 8
   dataset_class: drumblender.data.AudioWithParametersDataset
   data_dir: ../datasets/modal_features/processed_modal_flat
-  data_dir_unprocessed: ../datasets/processed
+  data_dir_unprocessed: ../samples/processed
   meta_file: metadata.json
   sample_rate: 48000
   skip_prepare_data: true
@@ -21,6 +21,7 @@ init_args:
   dataset_kwargs:
     seed: 20020420
     parameter_key: feature_file
+    audio_dir: ../samples/processed
     split_strategy: sample_pack
     expected_num_modes: 64
     sample_pack_keys:

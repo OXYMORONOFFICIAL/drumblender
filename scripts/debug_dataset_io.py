@@ -24,8 +24,9 @@ def main() -> None:
     parser.add_argument(
         "--data-dir",
         type=str,
-        default="/mnt/datasets/modal_features/processed_modal_flat",
+        default="../datasets/modal_features/processed_modal_flat",
     )
+    parser.add_argument("--audio-dir", type=str, default="../samples/processed")
     parser.add_argument("--meta-file", type=str, default="metadata.json")
     parser.add_argument("--sample-rate", type=int, default=48000)
     parser.add_argument("--batch-size", type=int, default=2)
@@ -43,6 +44,7 @@ def main() -> None:
         split_strategy="sample_pack",
         parameter_key="feature_file",
         expected_num_modes=64,
+        audio_dir=args.audio_dir,
         seed=args.seed,
     )
     t1 = time.time()
@@ -90,4 +92,3 @@ def main() -> None:
 if __name__ == "__main__":
     torch.set_num_threads(1)
     main()
-

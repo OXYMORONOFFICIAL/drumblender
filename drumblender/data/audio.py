@@ -347,6 +347,7 @@ class AudioWithParametersDataset(Dataset):
         instruments: Optional[List[str]] = None,
         sample_pack_keys: Optional[List[str]] = None,
         parameter_key: str = "feature_file",
+        audio_dir: Optional[Union[str, Path]] = None,
         expected_num_modes: Optional[int] = None,
         split_train_ratio: float = 0.8,
         split_val_ratio: float = 0.1,
@@ -364,6 +365,8 @@ class AudioWithParametersDataset(Dataset):
         self.instruments = instruments
         self.sample_pack_keys = sample_pack_keys
         self.parameter_key = parameter_key
+        self.audio_dir = Path(audio_dir) if audio_dir is not None else None
+        self._audio_fallback_warned = False
         self.expected_num_modes = expected_num_modes
         self.split_train_ratio = split_train_ratio
         self.split_val_ratio = split_val_ratio
@@ -430,7 +433,7 @@ class AudioWithParametersDataset(Dataset):
             if "num_samples" in item:
                 self.lengths.append(int(item["num_samples"]))
             else:
-                wav_path = self.data_dir.joinpath(item["filename"])
+                wav_path = self._audio_path(item)
                 try:
                     info = torchaudio.info(wav_path)
                     self.lengths.append(int(info.num_frames))
@@ -537,7 +540,7 @@ class AudioWithParametersDataset(Dataset):
         key = self.file_list[idx]
         item = self.metadata[key]
 
-        wav_path = self.data_dir.joinpath(item["filename"])
+        wav_path = self._audio_path(item)
         waveform, sr = torchaudio.load(wav_path)
         assert sr == self.sample_rate, f"Sample rate mismatch: {sr} != {self.sample_rate}"
 
@@ -578,4 +581,18 @@ class AudioWithParametersDataset(Dataset):
                 params = torch.cat([params, pad], dim=1)
 
         return waveform, params, length
+
+    def _audio_path(self, item: dict) -> Path:
+        if self.audio_dir is not None and item.get("orig_relpath"):
+            audio_path = self.audio_dir.joinpath(item["orig_relpath"])
+            if audio_path.exists():
+                return audio_path
+            if not self._audio_fallback_warned:
+                log.warning(
+                    "audio_dir/orig_relpath is missing; falling back to dataset audio. "
+                    "Missing example: %s",
+                    audio_path,
+                )
+                self._audio_fallback_warned = True
+        return self.data_dir.joinpath(item["filename"])
 ###

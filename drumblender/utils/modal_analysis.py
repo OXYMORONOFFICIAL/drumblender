@@ -6,13 +6,11 @@ Uses the nnAudio CQT implementation for better resolution with low frequncies
 from typing import List
 from typing import Optional
 from typing import Tuple
+from typing import Union
 
 import numpy as np
 import torch
 
-# nnAudio may not be installed -- some of the methods will not work here,
-# but they are only required for pre-processing the audio so we won't
-# raise an error, unless the user tries to use a method that requires nnAudio
 try:
     import nnAudio.features as features
 except ImportError:
@@ -31,6 +29,11 @@ class CQTModalAnalysis:
         num_modes: Optional[int] = None,
         threshold: float = -80.0,
         diff_threshold: float = 2.5,
+        max_gap: int = 2,
+        min_active_frames: Optional[int] = None,
+        min_streak: Optional[int] = None,
+        min_active_ratio: float = 0.25,
+        min_track_energy: float = 0.0,
         **kwargs,
     ) -> None:
         """
@@ -45,6 +48,13 @@ class CQTModalAnalysis:
             min_length: Minimum length of a track in frames
             num_modes: Number of modes to return. If None, will return all
             threshold: Threshold for amplitude in dB for a mode to be considered
+            max_gap: Number of inactive frames a track can span before closing
+            min_active_frames: Minimum matched-peak frames required for a track.
+                Defaults to min_length.
+            min_streak: Minimum consecutive matched-peak frames required for a track.
+                Defaults to min_active_frames.
+            min_active_ratio: Minimum ratio of matched-peak frames to tracked frames
+            min_track_energy: Minimum integrated amplitude over matched-peak frames
             **kwargs: Additional keyword arguments to pass to the nnAudio CQT
         """
 
@@ -63,6 +73,11 @@ class CQTModalAnalysis:
         self.num_modes = num_modes
         self.threshold = threshold
         self.diff_threshold = diff_threshold / 100.0
+        self.max_gap = max_gap
+        self.min_active_frames = min_active_frames
+        self.min_streak = min_streak
+        self.min_active_ratio = min_active_ratio
+        self.min_track_energy = min_track_energy
 
         self.cqt = features.CQT(
             sr=sample_rate,
@@ -100,9 +115,17 @@ class CQTModalAnalysis:
         batch_amps = []
         batch_phases = []
         for i in range(x.shape[0]):
-            freqs, amps, phases = self.modal_tracking(x[i], threshold=self.threshold)
+            freqs, amps, phases, active, start_frames = self.modal_tracking(
+                x[i], threshold=self.threshold, return_metadata=True
+            )
             freqs, amps, phases = self.create_modal_tensors(
-                freqs, amps, phases, num_hops=num_hops, min_length=self.min_length
+                freqs,
+                amps,
+                phases,
+                num_hops=num_hops,
+                min_length=self.min_length,
+                active=active,
+                start_frames=start_frames,
             )
 
             # Convert to Hz
@@ -144,8 +167,20 @@ class CQTModalAnalysis:
         return x
 
     def modal_tracking(
-        self, spec: np.ndarray, threshold: float = -80.0
-    ) -> Tuple[np.ndarray, np.ndarray]:
+        self,
+        spec: np.ndarray,
+        threshold: float = -80.0,
+        return_metadata: bool = False,
+    ) -> Union[
+        Tuple[List[List[float]], List[List[float]], List[List[float]]],
+        Tuple[
+            List[List[float]],
+            List[List[float]],
+            List[List[float]],
+            List[List[bool]],
+            List[int],
+        ],
+    ]:
         """
         Performs modal tracking on a CQT spectrogram -- i.e. finds sinusoidal tracks
         and attempts to continue them across frames.
@@ -166,10 +201,14 @@ class CQTModalAnalysis:
         # important modes will have the longest decay
         spec = np.flip(spec, axis=1)
 
-        # Initialize lists to store each mode's frequency, amplitude, and phase
+        # Initialize lists to store each mode's values and active-state metadata.
         freqs = []
         amps = []
         phases = []
+        active = []
+        start_frames = []
+        gap_counts = []
+        open_tracks = []
 
         # Select modes from the spectrogram
         for i in range(spec.shape[1]):
@@ -184,21 +223,18 @@ class CQTModalAnalysis:
             # Find peaks in the current frame
             peaks = peak_detection(X_db, threshold)
             if len(peaks) == 0:
+                open_tracks = self._append_inactive_frame(
+                    freqs, amps, phases, active, gap_counts, open_tracks
+                )
                 continue
 
             peaks_loc, peaks_mag, peaks_phase = peak_interpolation(
                 X_mag, X_phase, peaks
             )
 
-            # Initialize modes
-            if len(freqs) == 0:
-                freqs.append(list(peaks_loc))
-                amps.append(list(peaks_mag))
-                phases.append(list(peaks_phase))
-                continue
-
             # Try to continue the mode from the previous frame
-            for j in range(len(freqs)):
+            next_open_tracks = []
+            for j in open_tracks:
                 if len(peaks_loc) > 0:
                     # Find difference between previous peak and current peaks
                     prev_freq = freqs[j][-1]
@@ -211,32 +247,51 @@ class CQTModalAnalysis:
                         freqs[j].append(peaks_loc[closest_peak])
                         amps[j].append(peaks_mag[closest_peak])
                         phases[j].append(peaks_phase[closest_peak])
+                        active[j].append(True)
+                        gap_counts[j] = 0
+                        next_open_tracks.append(j)
 
                         # Remove the peak from the list
                         peaks_loc = np.delete(peaks_loc, closest_peak)
                         peaks_mag = np.delete(peaks_mag, closest_peak)
+                        peaks_phase = np.delete(peaks_phase, closest_peak)
                     else:
                         # No good matching peaks, just copy the last peak, but
                         # with an amplitude of 0.
-                        freqs[j].append(freqs[j][-1])
-                        amps[j].append(0.0)
-                        phases[j].append(phases[j][-1])
+                        self._append_inactive_track(
+                            freqs,
+                            amps,
+                            phases,
+                            active,
+                            gap_counts,
+                            next_open_tracks,
+                            j,
+                        )
                 else:
                     # If there are no more peaks, just copy the last peak
-                    freqs[j].append(freqs[j][-1])
-                    amps[j].append(0.0)
-                    phases[j].append(phases[j][-1])
+                    self._append_inactive_track(
+                        freqs,
+                        amps,
+                        phases,
+                        active,
+                        gap_counts,
+                        next_open_tracks,
+                        j,
+                    )
+            open_tracks = next_open_tracks
 
             # Add any remaining peaks as new modes
-            for peak in peaks_loc:
-                freqs.append([peak])
+            for peak_loc, peak_mag, peak_phase in zip(peaks_loc, peaks_mag, peaks_phase):
+                freqs.append([peak_loc])
+                amps.append([peak_mag])
+                phases.append([peak_phase])
+                active.append([True])
+                start_frames.append(i)
+                gap_counts.append(0)
+                open_tracks.append(len(freqs) - 1)
 
-            for peak in peaks_mag:
-                amps.append([peak])
-
-            for peak in peaks_phase:
-                phases.append([peak])
-
+        if return_metadata:
+            return freqs, amps, phases, active, start_frames
         return freqs, amps, phases
 
     def create_modal_tensors(
@@ -246,6 +301,8 @@ class CQTModalAnalysis:
         phases: List[List[float]],
         num_hops: int,
         min_length: int,
+        active: Optional[List[List[bool]]] = None,
+        start_frames: Optional[List[int]] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Converts lists of modal freqs, amps, and phases into
@@ -258,43 +315,113 @@ class CQTModalAnalysis:
             amps: List of list of amplitudes of shape (modes, frames)
             phases: List of list of phases of shape (modes, frames)
             num_hops: Number of frames in the spectrogram
-            min_length: Minimum length of a mode to be included
+            min_length: Minimum active-frame count of a mode to be included
+            active: Optional active-state mask for each track frame
+            start_frames: Optional start frame for each track in reversed time
 
         Returns:
             Tuple of (frequencies, amplitudes, phases) of shape (modes, num_hops)
         """
 
-        num_modes = len(freqs)
         freq_env = []
         amp_env = []
         phase_env = []
 
-        for i in range(num_modes):
-            # Check if the mode is long enough
-            if len(freqs[i]) < min_length:
+        for i in range(len(freqs)):
+            active_i = active[i] if active is not None else [a > 0.0 for a in amps[i]]
+            if not self._valid_track(amps[i], active_i, min_length):
                 continue
 
             freq_env.append(torch.zeros(num_hops))
             amp_env.append(torch.zeros(num_hops))
             phase_env.append(torch.zeros(num_hops))
 
-            freqs[i].reverse()
-            amps[i].reverse()
-            phases[i].reverse()
+            if start_frames is None:
+                freqs_i = freqs[i][::-1]
+                amps_i = amps[i][::-1]
+                phases_i = phases[i][::-1]
+                track_len = min(num_hops, len(freqs_i))
+                for h in range(track_len):
+                    freq_env[-1][h] = freqs_i[h]
+                    amp_env[-1][h] = amps_i[h]
+                    phase_env[-1][h] = phases_i[h]
+            else:
+                for k, (freq, amp, phase) in enumerate(
+                    zip(freqs[i], amps[i], phases[i])
+                ):
+                    frame = start_frames[i] + k
+                    if frame >= num_hops:
+                        break
+                    h = num_hops - 1 - frame
+                    if h < 0:
+                        break
+                    freq_env[-1][h] = freq
+                    amp_env[-1][h] = amp
+                    phase_env[-1][h] = phase
 
-            for h in range(num_hops):
-                if h < len(freqs[i]):
-                    freq_env[-1][h] = freqs[i][h]
-                    amp_env[-1][h] = amps[i][h]
-                    phase_env[-1][h] = phases[i][h]
-                else:
-                    break
+        if not freq_env:
+            shape = (0, num_hops)
+            return torch.zeros(shape), torch.zeros(shape), torch.zeros(shape)
 
-        freq_env = torch.stack(freq_env)
-        amp_env = torch.stack(amp_env)
-        phase_env = torch.stack(phase_env)
+        return torch.stack(freq_env), torch.stack(amp_env), torch.stack(phase_env)
 
-        return freq_env, amp_env, phase_env
+    def _append_inactive_frame(
+        self,
+        freqs: List[List[float]],
+        amps: List[List[float]],
+        phases: List[List[float]],
+        active: List[List[bool]],
+        gap_counts: List[int],
+        open_tracks: List[int],
+    ) -> List[int]:
+        next_open_tracks = []
+        for j in open_tracks:
+            self._append_inactive_track(
+                freqs, amps, phases, active, gap_counts, next_open_tracks, j
+            )
+        return next_open_tracks
+
+    def _append_inactive_track(
+        self,
+        freqs: List[List[float]],
+        amps: List[List[float]],
+        phases: List[List[float]],
+        active: List[List[bool]],
+        gap_counts: List[int],
+        next_open_tracks: List[int],
+        track_idx: int,
+    ) -> None:
+        gap_counts[track_idx] += 1
+        if gap_counts[track_idx] <= self.max_gap:
+            freqs[track_idx].append(freqs[track_idx][-1])
+            amps[track_idx].append(0.0)
+            phases[track_idx].append(phases[track_idx][-1])
+            active[track_idx].append(False)
+            next_open_tracks.append(track_idx)
+
+    def _valid_track(
+        self,
+        amps: List[float],
+        active: List[bool],
+        min_length: int,
+    ) -> bool:
+        if len(active) == 0:
+            return False
+
+        total_active = sum(active)
+        min_active_frames = (
+            min_length if self.min_active_frames is None else self.min_active_frames
+        )
+        min_streak = min_active_frames if self.min_streak is None else self.min_streak
+        active_energy = sum(amp for amp, is_active in zip(amps, active) if is_active)
+        active_ratio = total_active / len(active)
+
+        return (
+            total_active >= min_active_frames
+            and max_consecutive_true(active) >= min_streak
+            and active_ratio >= self.min_active_ratio
+            and active_energy >= self.min_track_energy
+        )
 
     def frequencies(self) -> np.ndarray:
         """
@@ -331,6 +458,18 @@ def peak_detection(
     ploc = thresh * next_minor * prev_minor  # locations fulfilling the three criteria
     ploc = ploc.nonzero()[0] + 1  # add 1 to compensate for previous steps
     return ploc
+
+
+def max_consecutive_true(values: List[bool]) -> int:
+    max_streak = 0
+    current = 0
+    for value in values:
+        if value:
+            current += 1
+            max_streak = max(max_streak, current)
+        else:
+            current = 0
+    return max_streak
 
 
 def peak_interpolation(

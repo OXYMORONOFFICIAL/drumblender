@@ -1,0 +1,16 @@
+class_path: drumblender.upgrades.encoders.BSCodecStyleAttentionEncoder
+init_args:
+  input_channels: 1
+  hidden_channels: 32
+  output_channels: 128
+  latent_channels: 128
+  sample_rate: 48000
+  bands:
+    - [0.0, 4000.0]
+    - [4000.0, 24000.0]
+  strides: [2, 2, 4, 8]
+  target_hop_size: 128
+  residual_layers: 1
+  lstm_layers: 1
+  causal: false
+  use_weight_norm: true

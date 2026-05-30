@@ -1,0 +1,9 @@
+class_path: drumblender.upgrades.encoders.SpectroStreamStyleEncoder
+init_args:
+  input_channels: 1
+  output_channels: 128
+  hidden_channels: 256
+  n_ffts: [512, 1024, 2048]
+  target_hop_size: 128
+  num_layers: 4
+  transpose_output: true

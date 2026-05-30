@@ -19,6 +19,9 @@ from pathlib import Path
 from typing import Any
 
 
+DEFAULT_RESULTS_ROOT = Path("../results/run_NOISEDAC_20260412_231956")
+
+
 def _read_json(path: Path) -> dict[str, Any]:
     with path.open("r", encoding="utf-8") as f:
         return json.load(f)
@@ -385,10 +388,22 @@ def _write_site_data(output_dir: Path, payload: dict[str, Any]) -> None:
 
 
 def _clear_generated_dirs(output_dir: Path) -> None:
-    for relative in ("data", "media"):
-        target = output_dir / relative
-        if target.exists():
-            shutil.rmtree(target)
+    data_dir = output_dir / "data"
+    site_data = data_dir / "site-data.json"
+    if site_data.exists():
+        site_data.unlink()
+
+    media_dir = output_dir / "media"
+    if not media_dir.exists():
+        return
+
+    for child in media_dir.iterdir():
+        if child.name == "control":
+            continue
+        if child.is_dir():
+            shutil.rmtree(child)
+        else:
+            child.unlink()
 
 
 def main() -> None:
@@ -396,7 +411,7 @@ def main() -> None:
     parser.add_argument(
         "--logs-root",
         type=Path,
-        default=Path("logs"),
+        default=DEFAULT_RESULTS_ROOT,
         help="Root directory to scan for evaluation outputs.",
     )
     parser.add_argument(
@@ -414,7 +429,7 @@ def main() -> None:
     parser.add_argument(
         "--site-title",
         type=str,
-        default="DrumBlender Experiment Board",
+        default="DrumBlender NOISEDAC Demo",
         help="Title shown in the generated site data.",
     )
     args = parser.parse_args()

@@ -4,6 +4,13 @@ set -euo pipefail
 REPO_ROOT="${REPO_ROOT:-/workspace/drumblender}"
 CFG_PATH="${CFG_PATH:-cfg/05_all_parallel.yaml}"
 cd "$REPO_ROOT" || exit 1
+source "$REPO_ROOT/scripts/encoder_modes.sh"
+
+usage() {
+  printf 'usage: bash run.sh [plain|amp|smooth|si|legacy_si] [%s] [%s] [batch_size] [accumulate_grad_batches]\n' \
+    "$DRUMBLENDER_NOISE_ENCODER_MODE_USAGE" \
+    "$DRUMBLENDER_TRANSIENT_ENCODER_MODE_USAGE" >&2
+}
 
 LOSS_MODE="${1:-plain}"
 NOISE_ENCODER_MODE="${2:-baseline}"
@@ -29,56 +36,24 @@ case "$LOSS_MODE" in
     LOSS_CFG_PATH="$REPO_ROOT/cfg/loss/safe_mss.yaml"
     ;;
   *)
-    printf 'usage: bash run.sh [plain|amp|smooth|si|legacy_si] [baseline|dac|dac_lstm|dac_len|dac_lstm_len|dac_len_lstm_len] [baseline|dac] [batch_size] [accumulate_grad_batches]\n' >&2
+    usage
     exit 1
     ;;
 esac
 
-case "$NOISE_ENCODER_MODE" in
-  baseline|soundstream|off)
-    NOISE_RUN_TAG=""
-    NOISE_ENCODER_CFG_PATH=""
-    ;;
-  dac)
-    NOISE_RUN_TAG="NOISEDAC_"
-    NOISE_ENCODER_CFG_PATH="$REPO_ROOT/cfg/upgrades/encoders/noise_dac_style.yaml"
-    ;;
-  dac_lstm|daclstm|sequence)
-    NOISE_RUN_TAG="NOISEDACLSTM_"
-    NOISE_ENCODER_CFG_PATH="$REPO_ROOT/cfg/upgrades/encoders/noise_dac_lstm_style.yaml"
-    ;;
-  dac_len|daclen)
-    NOISE_RUN_TAG="NOISEDACLEN_"
-    NOISE_ENCODER_CFG_PATH="$REPO_ROOT/cfg/upgrades/encoders/noise_dac_len_style.yaml"
-    ;;
-  dac_lstm_len|daclstm_len|daclstmlen)
-    NOISE_RUN_TAG="NOISEDACLSTMLEN_"
-    NOISE_ENCODER_CFG_PATH="$REPO_ROOT/cfg/upgrades/encoders/noise_dac_lstm_len_style.yaml"
-    ;;
-  dac_len_lstm_len|daclen_lstm_len|daclenlstmlen)
-    NOISE_RUN_TAG="NOISEDACLENLSTMLEN_"
-    NOISE_ENCODER_CFG_PATH="$REPO_ROOT/cfg/upgrades/encoders/noise_dac_len_lstm_len_style.yaml"
-    ;;
-  *)
-    printf 'usage: bash run.sh [plain|amp|smooth|si|legacy_si] [baseline|dac|dac_lstm|dac_len|dac_lstm_len|dac_len_lstm_len] [baseline|dac] [batch_size] [accumulate_grad_batches]\n' >&2
-    exit 1
-    ;;
-esac
+IFS=$'\t' read -r NOISE_RUN_TAG NOISE_ENCODER_CFG_PATH < <(
+  drumblender_resolve_encoder_mode noise "$NOISE_ENCODER_MODE" "$REPO_ROOT"
+) || {
+  usage
+  exit 1
+}
 
-case "$TRANSIENT_ENCODER_MODE" in
-  baseline|soundstream|off)
-    TRANSIENT_RUN_TAG=""
-    TRANSIENT_ENCODER_CFG_PATH=""
-    ;;
-  dac)
-    TRANSIENT_RUN_TAG="TRANSDAC_"
-    TRANSIENT_ENCODER_CFG_PATH="$REPO_ROOT/cfg/upgrades/encoders/transient_dac_style.yaml"
-    ;;
-  *)
-    printf 'usage: bash run.sh [plain|amp|smooth|si|legacy_si] [baseline|dac|dac_lstm|dac_len|dac_lstm_len|dac_len_lstm_len] [baseline|dac] [batch_size] [accumulate_grad_batches]\n' >&2
-    exit 1
-    ;;
-esac
+IFS=$'\t' read -r TRANSIENT_RUN_TAG TRANSIENT_ENCODER_CFG_PATH < <(
+  drumblender_resolve_encoder_mode transient "$TRANSIENT_ENCODER_MODE" "$REPO_ROOT"
+) || {
+  usage
+  exit 1
+}
 
 WANDB_PROJECT="${WANDB_PROJECT:-drumblender}"
 WANDB_NAME="${WANDB_NAME:-${RUN_PREFIX}${NOISE_RUN_TAG}${TRANSIENT_RUN_TAG}$(date +%Y%m%d_%H%M%S)}"

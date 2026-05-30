@@ -1,25 +1,25 @@
 {
-  "site_title": "DrumBlender Experiment Board",
-  "generated_from": "C:/Users/mindi/Desktop/drumblender/logs",
-  "generated_run_count": 5,
-  "audio_run_count": 1,
+  "site_title": "DrumBlender NOISEDAC Demo",
+  "generated_from": "C:/Users/mindi/Desktop/results/run_NOISEDAC_20260412_231956",
+  "generated_run_count": 10,
+  "audio_run_count": 10,
   "runs": [
     {
-      "slug": "result-05-0220-adamw-si",
-      "name": "result_05_0220_AdamW_SI",
-      "display_name": "result 05 0220 AdamW SI",
-      "relative_dir": "C:/Users/mindi/Desktop/drumblender/logs/result_05_0220_AdamW_SI",
+      "slug": "05-all-parallel-mdlib2",
+      "name": "05_all_parallel_MDLib2",
+      "display_name": "05 all parallel MDLib2",
+      "relative_dir": "C:/Users/mindi/Desktop/results/run_NOISEDAC_20260412_231956/per_pack/05_all_parallel_MDLib2",
       "config": "cfg/05_all_parallel.yaml",
-      "checkpoint": "/root/drumblender/ckpt/epoch090-step00244517-v1.ckpt",
+      "checkpoint": "/workspace/drumblender/ckpt/run_NOISEDAC_20260412_231956/run_NOISEDAC_20260412_231956-epoch058-step00035282.ckpt",
       "split": "test",
-      "num_items": 1354,
-      "export_time_utc": "2026-02-23T21:03:07.951887+00:00",
+      "num_items": 773,
+      "export_time_utc": "2026-04-13T05:24:29.798879+00:00",
       "metrics": {
-        "test/loss": 1.2458436639217365,
-        "test/lsd": 2.164564609527588,
-        "test/flux_onset": 303.1473693847656,
-        "test/mss_sc": 0.533236177910554,
-        "test/mss_log": 0.7126074850207066
+        "test/loss": 1.2655618616402688,
+        "test/lsd": 2.0907607078552246,
+        "test/flux_onset": 12.136134147644043,
+        "test/mss_sc": 0.5652550071632106,
+        "test/mss_log": 0.7003068505252626
       },
       "metric_names": [
         "test/flux_onset",
@@ -29,159 +29,136 @@
         "test/mss_sc"
       ],
       "sample_metric_names": [
-        "test/loss"
+        "test/flux_onset",
+        "test/loss",
+        "test/lsd"
       ],
       "loss_stats": {
-        "mean": 1.2458436639217365,
-        "std": 0.27326520543390415,
-        "min": 0.26789969205856323,
-        "max": 2.7797837257385254,
-        "median": 1.2381243109703064,
-        "p95": 1.6645193099975586,
-        "count": 1354
+        "mean": 1.2655618616402688,
+        "std": 0.20335502042840609,
+        "min": 0.7826493978500366,
+        "max": 1.920907974243164,
+        "median": 1.2713640928268433,
+        "p95": 1.6027965545654297,
+        "count": 773
       },
-      "git_commit": "d97c76fa36d536514116ab183d51ebff6ff74330",
+      "git_commit": "6e98532f5b3aff2a998ddbc400cf8f24d64140d4",
       "has_audio": true,
       "samples": [
         {
           "bucket": "best",
-          "source_filename": "splice/si_xylophone_alto_mallet_quieter_calm_C5_1.wav",
-          "pack": "splice",
-          "length": 57828,
+          "source_filename": "MDLib2/Floor Tom/Strike/DI_Floor Tom_Strike_1212.1.wav",
+          "pack": "MDLib2",
+          "length": 166649,
           "metric_focus": "test/loss",
           "metrics": {
-            "test/loss": 0.26789969205856323
+            "test/loss": 0.7826493978500366,
+            "test/lsd": 1.9352660179138184,
+            "test/flux_onset": 1.433464527130127
           },
           "audio": {
-            "recon": "media/result-05-0220-adamw-si/recon/01-si-xylophone-alto-mallet-quieter-calm-c5-1-7effaf1f.wav",
-            "target": "media/result-05-0220-adamw-si/target/01-si-xylophone-alto-mallet-quieter-calm-c5-1-7effaf1f.wav"
+            "recon": "media/05-all-parallel-mdlib2/recon/01-di-floor-tom-strike-12121-a34056c3.wav",
+            "target": "media/05-all-parallel-mdlib2/target/01-di-floor-tom-strike-12121-a34056c3.wav"
           }
         },
         {
           "bucket": "best",
-          "source_filename": "splice/si_xylophone_alto_mallet_quieter_sensational_A4_1.wav",
-          "pack": "splice",
-          "length": 49246,
-          "metric_focus": "test/loss",
-          "metrics": {
-            "test/loss": 0.29819774627685547
-          },
-          "audio": {
-            "recon": "media/result-05-0220-adamw-si/recon/02-si-xylophone-alto-mallet-quieter-sensational-a4--b1d64a34.wav",
-            "target": "media/result-05-0220-adamw-si/target/02-si-xylophone-alto-mallet-quieter-sensational-a4--b1d64a34.wav"
-          }
-        },
-        {
-          "bucket": "median",
-          "source_filename": "splice/ESM_BKM_drum_kick_one_shot_mid_thick_solid_low_1.wav",
-          "pack": "splice",
-          "length": 18432,
-          "metric_focus": "test/loss",
-          "metrics": {
-            "test/loss": 1.2365655899047852
-          },
-          "audio": {
-            "recon": "media/result-05-0220-adamw-si/recon/03-esm-bkm-drum-kick-one-shot-mid-thick-solid-low-1-92c18d0c.wav",
-            "target": "media/result-05-0220-adamw-si/target/03-esm-bkm-drum-kick-one-shot-mid-thick-solid-low-1-92c18d0c.wav"
-          }
-        },
-        {
-          "bucket": "median",
-          "source_filename": "MDLib2/Snare/Rim/MN_Snare_Rim_1313.2.wav",
+          "source_filename": "MDLib2/Rack Tom SNoff/Strike/DI_Rack Tom_Strike_0311.3.wav",
           "pack": "MDLib2",
-          "length": 21504,
+          "length": 50688,
           "metric_focus": "test/loss",
           "metrics": {
-            "test/loss": 1.2379841804504395
+            "test/loss": 0.8384290933609009,
+            "test/lsd": 2.120509624481201,
+            "test/flux_onset": 37.98493194580078
           },
           "audio": {
-            "recon": "media/result-05-0220-adamw-si/recon/04-mn-snare-rim-13132-b7f10483.wav",
-            "target": "media/result-05-0220-adamw-si/target/04-mn-snare-rim-13132-b7f10483.wav"
+            "recon": "media/05-all-parallel-mdlib2/recon/02-di-rack-tom-strike-03113-b1c3f9da.wav",
+            "target": "media/05-all-parallel-mdlib2/target/02-di-rack-tom-strike-03113-b1c3f9da.wav"
+          }
+        },
+        {
+          "bucket": "median",
+          "source_filename": "MDLib2/Kick/Long Kick/Release/DI_Long Kick_Release_1113.6.wav",
+          "pack": "MDLib2",
+          "length": 32256,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 1.2703845500946045,
+            "test/lsd": 1.9297548532485962,
+            "test/flux_onset": 12.020832061767578
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-mdlib2/recon/03-di-long-kick-release-11136-312c8379.wav",
+            "target": "media/05-all-parallel-mdlib2/target/03-di-long-kick-release-11136-312c8379.wav"
+          }
+        },
+        {
+          "bucket": "median",
+          "source_filename": "MDLib2/Rack Tom SNoff/Rim/IN_Rack Tom_Rim_0133.1.wav",
+          "pack": "MDLib2",
+          "length": 52257,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 1.2711387872695923,
+            "test/lsd": 1.9241901636123657,
+            "test/flux_onset": 0.006146837025880814
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-mdlib2/recon/04-in-rack-tom-rim-01331-bc8a7c93.wav",
+            "target": "media/05-all-parallel-mdlib2/target/04-in-rack-tom-rim-01331-bc8a7c93.wav"
           }
         },
         {
           "bucket": "worst",
-          "source_filename": "splice/DS_PP_drum_hat_closed_bright_1.wav",
-          "pack": "splice",
-          "length": 4786,
+          "source_filename": "MDLib2/Bright Crash/Tip/MN_Bright Crash_Tip_1122.4.wav",
+          "pack": "MDLib2",
+          "length": 175420,
           "metric_focus": "test/loss",
           "metrics": {
-            "test/loss": 2.7797837257385254
+            "test/loss": 1.920907974243164,
+            "test/lsd": 2.2884738445281982,
+            "test/flux_onset": 0.00329904118552804
           },
           "audio": {
-            "recon": "media/result-05-0220-adamw-si/recon/05-ds-pp-drum-hat-closed-bright-1-74ccbc3b.wav",
-            "target": "media/result-05-0220-adamw-si/target/05-ds-pp-drum-hat-closed-bright-1-74ccbc3b.wav"
+            "recon": "media/05-all-parallel-mdlib2/recon/05-mn-bright-crash-tip-11224-6e4dd39a.wav",
+            "target": "media/05-all-parallel-mdlib2/target/05-mn-bright-crash-tip-11224-6e4dd39a.wav"
           }
         },
         {
           "bucket": "worst",
-          "source_filename": "TriSamples808/BD Bass Drum/TR808 BD Bass Drum Medium 08.wav",
-          "pack": "TriSamples808",
-          "length": 52624,
+          "source_filename": "MDLib2/Snare SNoff/Rim/DI_Snare_Rim_0333.4.wav",
+          "pack": "MDLib2",
+          "length": 16896,
           "metric_focus": "test/loss",
           "metrics": {
-            "test/loss": 2.649029493331909
+            "test/loss": 1.8930385112762451,
+            "test/lsd": 2.6925761699676514,
+            "test/flux_onset": 2.294837236404419
           },
           "audio": {
-            "recon": "media/result-05-0220-adamw-si/recon/06-tr808-bd-bass-drum-medium-08-e9a3adf7.wav",
-            "target": "media/result-05-0220-adamw-si/target/06-tr808-bd-bass-drum-medium-08-e9a3adf7.wav"
+            "recon": "media/05-all-parallel-mdlib2/recon/06-di-snare-rim-03334-b46eeb82.wav",
+            "target": "media/05-all-parallel-mdlib2/target/06-di-snare-rim-03334-b46eeb82.wav"
           }
         }
       ]
     },
     {
-      "slug": "result-01-adam",
-      "name": "result_01_adam",
-      "display_name": "result 01 adam",
-      "relative_dir": "C:/Users/mindi/Desktop/drumblender/logs/summary_compare_inputs/result_01_adam",
-      "config": "cfg/01_noise_params.yaml",
-      "checkpoint": "/workspace/drumblender/ckpt/last.ckpt",
-      "split": "test",
-      "num_items": 1354,
-      "export_time_utc": "2026-02-19T15:10:01.392863+00:00",
-      "metrics": {
-        "test/loss": 1.3157505950666248,
-        "test/lsd": 2.0751800537109375,
-        "test/flux_onset": 323.11444091796875,
-        "test/mss_sc": 0.6368036912575342,
-        "test/mss_log": 0.6789469061036933
-      },
-      "metric_names": [
-        "test/flux_onset",
-        "test/loss",
-        "test/lsd",
-        "test/mss_log",
-        "test/mss_sc"
-      ],
-      "sample_metric_names": [],
-      "loss_stats": {
-        "mean": 1.3157505950666248,
-        "min": 0.2380051463842392,
-        "max": 2.4349241256713867,
-        "median": 1.3248978853225708,
-        "p95": 1.6840823888778687,
-        "count": 1354
-      },
-      "git_commit": "2050ee77a83dc681ad0bed431674e85107bc0ee1",
-      "has_audio": false,
-      "samples": []
-    },
-    {
-      "slug": "recon-bundle-05-last-v2",
-      "name": "recon_bundle_05_last_v2",
-      "display_name": "recon bundle 05 last v2",
-      "relative_dir": "C:/Users/mindi/Desktop/drumblender/logs/summary_compare_inputs/recon_bundle_05_last_v2",
+      "slug": "05-all-parallel-dynamicpercussion",
+      "name": "05_all_parallel_DynamicPercussion",
+      "display_name": "05 all parallel DynamicPercussion",
+      "relative_dir": "C:/Users/mindi/Desktop/results/run_NOISEDAC_20260412_231956/per_pack/05_all_parallel_DynamicPercussion",
       "config": "cfg/05_all_parallel.yaml",
-      "checkpoint": "/root/drumblender/ckpt/last.ckpt",
+      "checkpoint": "/workspace/drumblender/ckpt/run_NOISEDAC_20260412_231956/run_NOISEDAC_20260412_231956-epoch058-step00035282.ckpt",
       "split": "test",
-      "num_items": 1354,
-      "export_time_utc": "2026-02-19T03:10:46.335840+00:00",
+      "num_items": 49,
+      "export_time_utc": "2026-04-13T05:23:55.786463+00:00",
       "metrics": {
-        "test/loss": 1.5562316913548389,
-        "test/lsd": 2.2420833110809326,
-        "test/flux_onset": 579.0414428710938,
-        "test/mss_sc": 0.8233304503353167,
-        "test/mss_log": 0.7329012441450243
+        "test/loss": 1.285208455153874,
+        "test/lsd": 2.7530012130737305,
+        "test/flux_onset": 20.549802780151367,
+        "test/mss_sc": 0.5470977492478429,
+        "test/mss_log": 0.7381106955664498
       },
       "metric_names": [
         "test/flux_onset",
@@ -190,35 +167,137 @@
         "test/mss_log",
         "test/mss_sc"
       ],
-      "sample_metric_names": [],
+      "sample_metric_names": [
+        "test/flux_onset",
+        "test/loss",
+        "test/lsd"
+      ],
       "loss_stats": {
-        "mean": 1.5562316913548389,
-        "min": 0.3361254632472992,
-        "max": 7.859315872192383,
-        "median": 1.3566336035728455,
-        "p95": 3.003152370452881,
-        "count": 1354
+        "mean": 1.285208455153874,
+        "std": 0.23125729667882808,
+        "min": 0.8419328927993774,
+        "max": 1.966562271118164,
+        "median": 1.2868492603302002,
+        "p95": 1.609309196472168,
+        "count": 49
       },
-      "git_commit": "2050ee77a83dc681ad0bed431674e85107bc0ee1",
-      "has_audio": false,
-      "samples": []
+      "git_commit": "6e98532f5b3aff2a998ddbc400cf8f24d64140d4",
+      "has_audio": true,
+      "samples": [
+        {
+          "bucket": "best",
+          "source_filename": "DynamicPercussion/TOM_HI/00011_TOM_HI_mf.wav",
+          "pack": "DynamicPercussion",
+          "length": 168688,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 0.8419328927993774,
+            "test/lsd": 2.222533702850342,
+            "test/flux_onset": 0.8917604684829712
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-dynamicpercussion/recon/01-00011-tom-hi-mf-3f557aff.wav",
+            "target": "media/05-all-parallel-dynamicpercussion/target/01-00011-tom-hi-mf-3f557aff.wav"
+          }
+        },
+        {
+          "bucket": "best",
+          "source_filename": "DynamicPercussion/TOM_MED/00018_TOM_MED_mf.wav",
+          "pack": "DynamicPercussion",
+          "length": 95744,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 0.857191801071167,
+            "test/lsd": 2.2202444076538086,
+            "test/flux_onset": 3.3305938243865967
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-dynamicpercussion/recon/02-00018-tom-med-mf-56cb74b6.wav",
+            "target": "media/05-all-parallel-dynamicpercussion/target/02-00018-tom-med-mf-56cb74b6.wav"
+          }
+        },
+        {
+          "bucket": "median",
+          "source_filename": "DynamicPercussion/SN_ON_CROSS/00005_SN_ON_CROSS_p.wav",
+          "pack": "DynamicPercussion",
+          "length": 48688,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 1.2659912109375,
+            "test/lsd": 2.4626400470733643,
+            "test/flux_onset": 0.0056383744813501835
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-dynamicpercussion/recon/03-00005-sn-on-cross-p-fc2529d1.wav",
+            "target": "media/05-all-parallel-dynamicpercussion/target/03-00005-sn-on-cross-p-fc2529d1.wav"
+          }
+        },
+        {
+          "bucket": "median",
+          "source_filename": "DynamicPercussion/CYM_CRASH_REG/00009_CYM_CRASH_REG_mf.wav",
+          "pack": "DynamicPercussion",
+          "length": 246784,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 1.2766087055206299,
+            "test/lsd": 2.5050930976867676,
+            "test/flux_onset": 0.18859611451625824
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-dynamicpercussion/recon/04-00009-cym-crash-reg-mf-3ddceb8e.wav",
+            "target": "media/05-all-parallel-dynamicpercussion/target/04-00009-cym-crash-reg-mf-3ddceb8e.wav"
+          }
+        },
+        {
+          "bucket": "worst",
+          "source_filename": "DynamicPercussion/CYM_FX_SPLASH/00015_CYM_FX_SPLASH_mf.wav",
+          "pack": "DynamicPercussion",
+          "length": 77056,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 1.966562271118164,
+            "test/lsd": 3.9966821670532227,
+            "test/flux_onset": 1.1641420125961304
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-dynamicpercussion/recon/05-00015-cym-fx-splash-mf-6931eace.wav",
+            "target": "media/05-all-parallel-dynamicpercussion/target/05-00015-cym-fx-splash-mf-6931eace.wav"
+          }
+        },
+        {
+          "bucket": "worst",
+          "source_filename": "DynamicPercussion/CYM_FX_SPLASH/00012_CYM_FX_SPLASH_p.wav",
+          "pack": "DynamicPercussion",
+          "length": 144688,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 1.7119216918945312,
+            "test/lsd": 3.1815500259399414,
+            "test/flux_onset": 0.020025629550218582
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-dynamicpercussion/recon/06-00012-cym-fx-splash-p-dab7bbe6.wav",
+            "target": "media/05-all-parallel-dynamicpercussion/target/06-00012-cym-fx-splash-p-dab7bbe6.wav"
+          }
+        }
+      ]
     },
     {
-      "slug": "result-05-adam-0219",
-      "name": "result_05_Adam_0219",
-      "display_name": "result 05 Adam 0219",
-      "relative_dir": "C:/Users/mindi/Desktop/drumblender/logs/summary_compare_inputs/result_05_Adam_0219",
+      "slug": "05-all-parallel-all",
+      "name": "05_all_parallel_all",
+      "display_name": "05 all parallel all",
+      "relative_dir": "C:/Users/mindi/Desktop/results/run_NOISEDAC_20260412_231956/all/05_all_parallel_all",
       "config": "cfg/05_all_parallel.yaml",
-      "checkpoint": "/root/drumblender/ckpt/last.ckpt",
+      "checkpoint": "/workspace/drumblender/ckpt/run_NOISEDAC_20260412_231956/run_NOISEDAC_20260412_231956-epoch058-step00035282.ckpt",
       "split": "test",
       "num_items": 1354,
-      "export_time_utc": "2026-02-19T15:02:40.643468+00:00",
+      "export_time_utc": "2026-04-13T05:22:05.235892+00:00",
       "metrics": {
-        "test/loss": 1.5564021598024946,
-        "test/lsd": 2.2418935298919678,
-        "test/flux_onset": 579.2852172851562,
-        "test/mss_sc": 0.8234056463820015,
-        "test/mss_log": 0.7329965108012343
+        "test/loss": 1.385168326262005,
+        "test/lsd": 2.3404369354248047,
+        "test/flux_onset": 284.3565979003906,
+        "test/mss_sc": 0.5762341567693468,
+        "test/mss_log": 0.8089341697347745
       },
       "metric_names": [
         "test/flux_onset",
@@ -227,35 +306,137 @@
         "test/mss_log",
         "test/mss_sc"
       ],
-      "sample_metric_names": [],
+      "sample_metric_names": [
+        "test/flux_onset",
+        "test/loss",
+        "test/lsd"
+      ],
       "loss_stats": {
-        "mean": 1.5564021598024946,
-        "min": 0.33676737546920776,
-        "max": 7.859063625335693,
-        "median": 1.3574087619781494,
-        "p95": 3.0054852962493896,
+        "mean": 1.385168326262005,
+        "std": 0.27787184027629874,
+        "min": 0.7564417123794556,
+        "max": 4.202089309692383,
+        "median": 1.3759660124778748,
+        "p95": 1.8479788303375244,
         "count": 1354
       },
-      "git_commit": "2050ee77a83dc681ad0bed431674e85107bc0ee1",
-      "has_audio": false,
-      "samples": []
+      "git_commit": "6e98532f5b3aff2a998ddbc400cf8f24d64140d4",
+      "has_audio": true,
+      "samples": [
+        {
+          "bucket": "best",
+          "source_filename": "splice/si_xylophone_alto_mallet_quieter_ideal_D5_1.wav",
+          "pack": "splice",
+          "length": 46360,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 0.7564417123794556,
+            "test/lsd": 2.497971773147583,
+            "test/flux_onset": 0.8801876306533813
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-all/recon/01-si-xylophone-alto-mallet-quieter-ideal-d5-1-5b9cc42e.wav",
+            "target": "media/05-all-parallel-all/target/01-si-xylophone-alto-mallet-quieter-ideal-d5-1-5b9cc42e.wav"
+          }
+        },
+        {
+          "bucket": "best",
+          "source_filename": "splice/si_xylophone_alto_mallet_quietest_elegant_E4_1.wav",
+          "pack": "splice",
+          "length": 61911,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 0.7629448771476746,
+            "test/lsd": 1.9797072410583496,
+            "test/flux_onset": 0.05888010933995247
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-all/recon/02-si-xylophone-alto-mallet-quietest-elegant-e4-1-67be41bc.wav",
+            "target": "media/05-all-parallel-all/target/02-si-xylophone-alto-mallet-quietest-elegant-e4-1-67be41bc.wav"
+          }
+        },
+        {
+          "bucket": "median",
+          "source_filename": "TidalCycles808/CY/CY0075.WAV",
+          "pack": "TidalCycles808",
+          "length": 129536,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 1.3755567073822021,
+            "test/lsd": 2.137518882751465,
+            "test/flux_onset": 11.075326919555664
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-all/recon/03-cy0075-bb78a3bd.wav",
+            "target": "media/05-all-parallel-all/target/03-cy0075-bb78a3bd.wav"
+          }
+        },
+        {
+          "bucket": "median",
+          "source_filename": "splice/TS_NIR_Z_JJ_ride_bell_one_shot_soft_1.wav",
+          "pack": "splice",
+          "length": 276736,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 1.3756160736083984,
+            "test/lsd": 2.3766448497772217,
+            "test/flux_onset": 4.051132678985596
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-all/recon/04-ts-nir-z-jj-ride-bell-one-shot-soft-1-d676fd32.wav",
+            "target": "media/05-all-parallel-all/target/04-ts-nir-z-jj-ride-bell-one-shot-soft-1-d676fd32.wav"
+          }
+        },
+        {
+          "bucket": "worst",
+          "source_filename": "TriSamples/TriSamples - 808s In The Box/808 Clave 00.Wav",
+          "pack": "TriSamples",
+          "length": 2816,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 4.202089309692383,
+            "test/lsd": 3.243112325668335,
+            "test/flux_onset": 507.0936584472656
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-all/recon/05-808-clave-00-91685b3b.wav",
+            "target": "media/05-all-parallel-all/target/05-808-clave-00-91685b3b.wav"
+          }
+        },
+        {
+          "bucket": "worst",
+          "source_filename": "musicradar-drum-samples/Drum Kits_mono/CYCdh_ElecK04-ClHat01.wav",
+          "pack": "musicradar-drum-samples",
+          "length": 1792,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 2.8301236629486084,
+            "test/lsd": 3.2708933353424072,
+            "test/flux_onset": 40.388389587402344
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-all/recon/06-cycdh-eleck04-clhat01-88fc9b64.wav",
+            "target": "media/05-all-parallel-all/target/06-cycdh-eleck04-clhat01-88fc9b64.wav"
+          }
+        }
+      ]
     },
     {
-      "slug": "result-04-0220-adamw",
-      "name": "result_04_0220_AdamW",
-      "display_name": "result 04 0220 AdamW",
-      "relative_dir": "C:/Users/mindi/Desktop/drumblender/logs/summary_compare_inputs/result_04_0220_AdamW",
-      "config": "cfg/04_noise_parallel_transient_params.yaml",
-      "checkpoint": "/workspace/drumblender/ckpt/epoch053-step00290358.ckpt",
+      "slug": "05-all-parallel-drumthrasher",
+      "name": "05_all_parallel_drumthrasher",
+      "display_name": "05 all parallel drumthrasher",
+      "relative_dir": "C:/Users/mindi/Desktop/results/run_NOISEDAC_20260412_231956/per_pack/05_all_parallel_drumthrasher",
+      "config": "cfg/05_all_parallel.yaml",
+      "checkpoint": "/workspace/drumblender/ckpt/run_NOISEDAC_20260412_231956/run_NOISEDAC_20260412_231956-epoch058-step00035282.ckpt",
       "split": "test",
-      "num_items": 1354,
-      "export_time_utc": "2026-02-20T02:23:26.710872+00:00",
+      "num_items": 32,
+      "export_time_utc": "2026-04-13T05:24:56.114980+00:00",
       "metrics": {
-        "test/loss": 9.187019470259218,
-        "test/lsd": 3.086717128753662,
-        "test/flux_onset": 254288.46875,
-        "test/mss_sc": 8.306713711387825,
-        "test/mss_log": 0.8803057798034507
+        "test/loss": 1.4386851340532303,
+        "test/lsd": 2.2944164276123047,
+        "test/flux_onset": 178.41558837890625,
+        "test/mss_sc": 0.5096394959837198,
+        "test/mss_log": 0.9290456529706717
       },
       "metric_names": [
         "test/flux_onset",
@@ -264,18 +445,954 @@
         "test/mss_log",
         "test/mss_sc"
       ],
-      "sample_metric_names": [],
+      "sample_metric_names": [
+        "test/flux_onset",
+        "test/loss",
+        "test/lsd"
+      ],
       "loss_stats": {
-        "mean": 9.187019470259218,
-        "min": 0.9824279546737671,
-        "max": 200.40830993652344,
-        "median": 1.691243588924408,
-        "p95": 43.567474365234375,
-        "count": 1354
+        "mean": 1.4386851340532303,
+        "std": 0.18719262649757978,
+        "min": 1.2163652181625366,
+        "max": 1.8842341899871826,
+        "median": 1.4030953645706177,
+        "p95": 1.8523505926132202,
+        "count": 32
       },
-      "git_commit": "1b049e106623c166d2f8e7fb140fd1947170e50e",
-      "has_audio": false,
-      "samples": []
+      "git_commit": "6e98532f5b3aff2a998ddbc400cf8f24d64140d4",
+      "has_audio": true,
+      "samples": [
+        {
+          "bucket": "best",
+          "source_filename": "drumthrasher/DT-Dry/SnareB-Med-012-Dry.wav",
+          "pack": "drumthrasher",
+          "length": 19456,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 1.2163652181625366,
+            "test/lsd": 2.1872990131378174,
+            "test/flux_onset": 191.97610473632812
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-drumthrasher/recon/01-snareb-med-012-dry-ebff4061.wav",
+            "target": "media/05-all-parallel-drumthrasher/target/01-snareb-med-012-dry-ebff4061.wav"
+          }
+        },
+        {
+          "bucket": "best",
+          "source_filename": "drumthrasher/DT-Dry/SnareB-Med-014-Dry.wav",
+          "pack": "drumthrasher",
+          "length": 18432,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 1.216522455215454,
+            "test/lsd": 2.189868450164795,
+            "test/flux_onset": 152.13914489746094
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-drumthrasher/recon/02-snareb-med-014-dry-dcc221e4.wav",
+            "target": "media/05-all-parallel-drumthrasher/target/02-snareb-med-014-dry-dcc221e4.wav"
+          }
+        },
+        {
+          "bucket": "median",
+          "source_filename": "drumthrasher/DT-Dry/Side-Stick-008-Dry.wav",
+          "pack": "drumthrasher",
+          "length": 17664,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 1.3896663188934326,
+            "test/lsd": 2.192460536956787,
+            "test/flux_onset": 59.78828048706055
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-drumthrasher/recon/03-side-stick-008-dry-ca89043e.wav",
+            "target": "media/05-all-parallel-drumthrasher/target/03-side-stick-008-dry-ca89043e.wav"
+          }
+        },
+        {
+          "bucket": "median",
+          "source_filename": "drumthrasher/DT-Dry/SnareA-Hard-006-Dry.wav",
+          "pack": "drumthrasher",
+          "length": 44032,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 1.3919217586517334,
+            "test/lsd": 2.1550886631011963,
+            "test/flux_onset": 52.772586822509766
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-drumthrasher/recon/04-snarea-hard-006-dry-d109c06a.wav",
+            "target": "media/05-all-parallel-drumthrasher/target/04-snarea-hard-006-dry-d109c06a.wav"
+          }
+        },
+        {
+          "bucket": "worst",
+          "source_filename": "drumthrasher/DT-Dry/Hat-Closed-001-Dry.wav",
+          "pack": "drumthrasher",
+          "length": 5632,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 1.8842341899871826,
+            "test/lsd": 2.6620590686798096,
+            "test/flux_onset": 8.900960922241211
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-drumthrasher/recon/05-hat-closed-001-dry-8b76770d.wav",
+            "target": "media/05-all-parallel-drumthrasher/target/05-hat-closed-001-dry-8b76770d.wav"
+          }
+        },
+        {
+          "bucket": "worst",
+          "source_filename": "drumthrasher/DT-Dry/Hat-Closed-003-Dry.wav",
+          "pack": "drumthrasher",
+          "length": 7936,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 1.8528423309326172,
+            "test/lsd": 2.6647019386291504,
+            "test/flux_onset": 29.58277130126953
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-drumthrasher/recon/06-hat-closed-003-dry-3ff4626f.wav",
+            "target": "media/05-all-parallel-drumthrasher/target/06-hat-closed-003-dry-3ff4626f.wav"
+          }
+        }
+      ]
+    },
+    {
+      "slug": "05-all-parallel-indiedrums",
+      "name": "05_all_parallel_IndieDrums",
+      "display_name": "05 all parallel IndieDrums",
+      "relative_dir": "C:/Users/mindi/Desktop/results/run_NOISEDAC_20260412_231956/per_pack/05_all_parallel_IndieDrums",
+      "config": "cfg/05_all_parallel.yaml",
+      "checkpoint": "/workspace/drumblender/ckpt/run_NOISEDAC_20260412_231956/run_NOISEDAC_20260412_231956-epoch058-step00035282.ckpt",
+      "split": "test",
+      "num_items": 6,
+      "export_time_utc": "2026-04-13T05:24:01.106556+00:00",
+      "metrics": {
+        "test/loss": 1.4637537399927776,
+        "test/lsd": 2.491142749786377,
+        "test/flux_onset": 216.75811767578125,
+        "test/mss_sc": 0.6149901350339254,
+        "test/mss_log": 0.8487635850906372
+      },
+      "metric_names": [
+        "test/flux_onset",
+        "test/loss",
+        "test/lsd",
+        "test/mss_log",
+        "test/mss_sc"
+      ],
+      "sample_metric_names": [
+        "test/flux_onset",
+        "test/loss",
+        "test/lsd"
+      ],
+      "loss_stats": {
+        "mean": 1.4637537399927776,
+        "std": 0.1863065800280746,
+        "min": 1.150791049003601,
+        "max": 1.760940432548523,
+        "median": 1.433672308921814,
+        "p95": 1.5945409536361694,
+        "count": 6
+      },
+      "git_commit": "6e98532f5b3aff2a998ddbc400cf8f24d64140d4",
+      "has_audio": true,
+      "samples": [
+        {
+          "bucket": "best",
+          "source_filename": "IndieDrums/slingerland-kit/Slingerland-Kit-RackTom-B.wav",
+          "pack": "IndieDrums",
+          "length": 58624,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 1.150791049003601,
+            "test/lsd": 2.233747959136963,
+            "test/flux_onset": 164.95681762695312
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-indiedrums/recon/01-slingerland-kit-racktom-b-45a2fe86.wav",
+            "target": "media/05-all-parallel-indiedrums/target/01-slingerland-kit-racktom-b-45a2fe86.wav"
+          }
+        },
+        {
+          "bucket": "best",
+          "source_filename": "IndieDrums/slingerland-kit/Ludwig-Snare-D.wav",
+          "pack": "IndieDrums",
+          "length": 16896,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 1.4089053869247437,
+            "test/lsd": 2.2077383995056152,
+            "test/flux_onset": 278.12603759765625
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-indiedrums/recon/02-ludwig-snare-d-2209daa1.wav",
+            "target": "media/05-all-parallel-indiedrums/target/02-ludwig-snare-d-2209daa1.wav"
+          }
+        },
+        {
+          "bucket": "median",
+          "source_filename": "IndieDrums/slingerland-kit/Ludwig-Snare-D.wav",
+          "pack": "IndieDrums",
+          "length": 16896,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 1.4089053869247437,
+            "test/lsd": 2.2077383995056152,
+            "test/flux_onset": 278.12603759765625
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-indiedrums/recon/03-ludwig-snare-d-2209daa1.wav",
+            "target": "media/05-all-parallel-indiedrums/target/03-ludwig-snare-d-2209daa1.wav"
+          }
+        },
+        {
+          "bucket": "median",
+          "source_filename": "IndieDrums/rock-kit/Rock-Kit-Kick-ff-1.wav",
+          "pack": "IndieDrums",
+          "length": 9726,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 1.4276784658432007,
+            "test/lsd": 2.1449527740478516,
+            "test/flux_onset": 457.5562744140625
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-indiedrums/recon/04-rock-kit-kick-ff-1-eb5cab4b.wav",
+            "target": "media/05-all-parallel-indiedrums/target/04-rock-kit-kick-ff-1-eb5cab4b.wav"
+          }
+        },
+        {
+          "bucket": "worst",
+          "source_filename": "IndieDrums/rock-kit/Rock-Snare-pp-1.wav",
+          "pack": "IndieDrums",
+          "length": 8143,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 1.760940432548523,
+            "test/lsd": 2.421359062194824,
+            "test/flux_onset": 2.466665267944336
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-indiedrums/recon/05-rock-snare-pp-1-d7de33bc.wav",
+            "target": "media/05-all-parallel-indiedrums/target/05-rock-snare-pp-1-d7de33bc.wav"
+          }
+        },
+        {
+          "bucket": "worst",
+          "source_filename": "IndieDrums/rock-kit/Rock-Kit-HiHat-Shank-2.wav",
+          "pack": "IndieDrums",
+          "length": 7936,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 1.5945409536361694,
+            "test/lsd": 2.175424814224243,
+            "test/flux_onset": 81.691162109375
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-indiedrums/recon/06-rock-kit-hihat-shank-2-708aa71e.wav",
+            "target": "media/05-all-parallel-indiedrums/target/06-rock-kit-hihat-shank-2-708aa71e.wav"
+          }
+        }
+      ]
+    },
+    {
+      "slug": "05-all-parallel-splice",
+      "name": "05_all_parallel_splice",
+      "display_name": "05 all parallel splice",
+      "relative_dir": "C:/Users/mindi/Desktop/results/run_NOISEDAC_20260412_231956/per_pack/05_all_parallel_splice",
+      "config": "cfg/05_all_parallel.yaml",
+      "checkpoint": "/workspace/drumblender/ckpt/run_NOISEDAC_20260412_231956/run_NOISEDAC_20260412_231956-epoch058-step00035282.ckpt",
+      "split": "test",
+      "num_items": 291,
+      "export_time_utc": "2026-04-13T05:25:16.869517+00:00",
+      "metrics": {
+        "test/loss": 1.540169958601293,
+        "test/lsd": 2.743359327316284,
+        "test/flux_onset": 615.8695678710938,
+        "test/mss_sc": 0.5584505324306357,
+        "test/mss_log": 0.9817194335444277
+      },
+      "metric_names": [
+        "test/flux_onset",
+        "test/loss",
+        "test/lsd",
+        "test/mss_log",
+        "test/mss_sc"
+      ],
+      "sample_metric_names": [
+        "test/flux_onset",
+        "test/loss",
+        "test/lsd"
+      ],
+      "loss_stats": {
+        "mean": 1.540169958601293,
+        "std": 0.31805008062023604,
+        "min": 0.7406985759735107,
+        "max": 3.3747777938842773,
+        "median": 1.5208039283752441,
+        "p95": 2.0733494758605957,
+        "count": 291
+      },
+      "git_commit": "6e98532f5b3aff2a998ddbc400cf8f24d64140d4",
+      "has_audio": true,
+      "samples": [
+        {
+          "bucket": "best",
+          "source_filename": "splice/si_xylophone_alto_mallet_quietest_watery_C5_1.wav",
+          "pack": "splice",
+          "length": 49503,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 0.7406985759735107,
+            "test/lsd": 2.2316765785217285,
+            "test/flux_onset": 0.08112771064043045
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-splice/recon/01-si-xylophone-alto-mallet-quietest-watery-c5-1-45004a87.wav",
+            "target": "media/05-all-parallel-splice/target/01-si-xylophone-alto-mallet-quietest-watery-c5-1-45004a87.wav"
+          }
+        },
+        {
+          "bucket": "best",
+          "source_filename": "splice/si_xylophone_alto_mallet_quieter_ideal_D5_1.wav",
+          "pack": "splice",
+          "length": 46360,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 0.7580714225769043,
+            "test/lsd": 2.496411085128784,
+            "test/flux_onset": 0.8801714181900024
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-splice/recon/02-si-xylophone-alto-mallet-quieter-ideal-d5-1-5b9cc42e.wav",
+            "target": "media/05-all-parallel-splice/target/02-si-xylophone-alto-mallet-quieter-ideal-d5-1-5b9cc42e.wav"
+          }
+        },
+        {
+          "bucket": "median",
+          "source_filename": "splice/MA_SLM_Snare_RX8_Simple_1.wav",
+          "pack": "splice",
+          "length": 8975,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 1.5144227743148804,
+            "test/lsd": 2.3380892276763916,
+            "test/flux_onset": 1328.85546875
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-splice/recon/03-ma-slm-snare-rx8-simple-1-f2ff4a1a.wav",
+            "target": "media/05-all-parallel-splice/target/03-ma-slm-snare-rx8-simple-1-f2ff4a1a.wav"
+          }
+        },
+        {
+          "bucket": "median",
+          "source_filename": "splice/MA_SLM_Kick_RX8_Retro_1.wav",
+          "pack": "splice",
+          "length": 13056,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 1.5190986394882202,
+            "test/lsd": 2.236859083175659,
+            "test/flux_onset": 3684.712158203125
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-splice/recon/04-ma-slm-kick-rx8-retro-1-2ead9bfc.wav",
+            "target": "media/05-all-parallel-splice/target/04-ma-slm-kick-rx8-retro-1-2ead9bfc.wav"
+          }
+        },
+        {
+          "bucket": "worst",
+          "source_filename": "splice/RARE_HH_hihat_perc_sharp_punch_oneshot_1.wav",
+          "pack": "splice",
+          "length": 10496,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 3.3747777938842773,
+            "test/lsd": 6.6846089363098145,
+            "test/flux_onset": 162.3276824951172
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-splice/recon/05-rare-hh-hihat-perc-sharp-punch-oneshot-1-188c0698.wav",
+            "target": "media/05-all-parallel-splice/target/05-rare-hh-hihat-perc-sharp-punch-oneshot-1-188c0698.wav"
+          }
+        },
+        {
+          "bucket": "worst",
+          "source_filename": "splice/MA_SLM_Percussion_Clave_R5_Hi_1.wav",
+          "pack": "splice",
+          "length": 3584,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 2.5843496322631836,
+            "test/lsd": 2.526681900024414,
+            "test/flux_onset": 1138.0902099609375
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-splice/recon/06-ma-slm-percussion-clave-r5-hi-1-32882599.wav",
+            "target": "media/05-all-parallel-splice/target/06-ma-slm-percussion-clave-r5-hi-1-32882599.wav"
+          }
+        }
+      ]
+    },
+    {
+      "slug": "05-all-parallel-trisamples808",
+      "name": "05_all_parallel_TriSamples808",
+      "display_name": "05 all parallel TriSamples808",
+      "relative_dir": "C:/Users/mindi/Desktop/results/run_NOISEDAC_20260412_231956/per_pack/05_all_parallel_TriSamples808",
+      "config": "cfg/05_all_parallel.yaml",
+      "checkpoint": "/workspace/drumblender/ckpt/run_NOISEDAC_20260412_231956/run_NOISEDAC_20260412_231956-epoch058-step00035282.ckpt",
+      "split": "test",
+      "num_items": 57,
+      "export_time_utc": "2026-04-13T05:24:49.790840+00:00",
+      "metrics": {
+        "test/loss": 1.5483619727586444,
+        "test/lsd": 2.573058605194092,
+        "test/flux_onset": 609.4241333007812,
+        "test/mss_sc": 0.5782649056953296,
+        "test/mss_log": 0.9700970503321865
+      },
+      "metric_names": [
+        "test/flux_onset",
+        "test/loss",
+        "test/lsd",
+        "test/mss_log",
+        "test/mss_sc"
+      ],
+      "sample_metric_names": [
+        "test/flux_onset",
+        "test/loss",
+        "test/lsd"
+      ],
+      "loss_stats": {
+        "mean": 1.5483619727586444,
+        "std": 0.27170577061607976,
+        "min": 0.8388649225234985,
+        "max": 2.591890811920166,
+        "median": 1.5135929584503174,
+        "p95": 1.9208533763885498,
+        "count": 57
+      },
+      "git_commit": "6e98532f5b3aff2a998ddbc400cf8f24d64140d4",
+      "has_audio": true,
+      "samples": [
+        {
+          "bucket": "best",
+          "source_filename": "TriSamples808/MC Mid Conga/TR808 MC Mid Conga 01.wav",
+          "pack": "TriSamples808",
+          "length": 177239,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 0.8388649225234985,
+            "test/lsd": 3.8419198989868164,
+            "test/flux_onset": 32.57963562011719
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-trisamples808/recon/01-tr808-mc-mid-conga-01-3c156992.wav",
+            "target": "media/05-all-parallel-trisamples808/target/01-tr808-mc-mid-conga-01-3c156992.wav"
+          }
+        },
+        {
+          "bucket": "best",
+          "source_filename": "TriSamples808/LC Low Conga/TR808 LC Low Conga 33.wav",
+          "pack": "TriSamples808",
+          "length": 24002,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 1.1945054531097412,
+            "test/lsd": 2.0287258625030518,
+            "test/flux_onset": 409.4913635253906
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-trisamples808/recon/02-tr808-lc-low-conga-33-451f1fb8.wav",
+            "target": "media/05-all-parallel-trisamples808/target/02-tr808-lc-low-conga-33-451f1fb8.wav"
+          }
+        },
+        {
+          "bucket": "median",
+          "source_filename": "TriSamples808/BD Bass Drum/TR808 BD Bass Drum Medium 24.wav",
+          "pack": "TriSamples808",
+          "length": 18176,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 1.5116386413574219,
+            "test/lsd": 2.5550851821899414,
+            "test/flux_onset": 4316.1669921875
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-trisamples808/recon/03-tr808-bd-bass-drum-medium-24-f62a86e9.wav",
+            "target": "media/05-all-parallel-trisamples808/target/03-tr808-bd-bass-drum-medium-24-f62a86e9.wav"
+          }
+        },
+        {
+          "bucket": "median",
+          "source_filename": "TriSamples808/CY Cymbal/TR808 CY Cymbal 06.wav",
+          "pack": "TriSamples808",
+          "length": 190208,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 1.511855959892273,
+            "test/lsd": 2.4771227836608887,
+            "test/flux_onset": 5.349011421203613
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-trisamples808/recon/04-tr808-cy-cymbal-06-717f910c.wav",
+            "target": "media/05-all-parallel-trisamples808/target/04-tr808-cy-cymbal-06-717f910c.wav"
+          }
+        },
+        {
+          "bucket": "worst",
+          "source_filename": "TriSamples808/RS Rim Shot/TR808 RS Rim Shot 04.wav",
+          "pack": "TriSamples808",
+          "length": 2052,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 2.591890811920166,
+            "test/lsd": 2.11142897605896,
+            "test/flux_onset": 33.58335494995117
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-trisamples808/recon/05-tr808-rs-rim-shot-04-0627c269.wav",
+            "target": "media/05-all-parallel-trisamples808/target/05-tr808-rs-rim-shot-04-0627c269.wav"
+          }
+        },
+        {
+          "bucket": "worst",
+          "source_filename": "TriSamples808/BD Bass Drum/TR808 BD Bass Drum Long 10.wav",
+          "pack": "TriSamples808",
+          "length": 92928,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 2.315723419189453,
+            "test/lsd": 3.810182571411133,
+            "test/flux_onset": 4362.15283203125
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-trisamples808/recon/06-tr808-bd-bass-drum-long-10-e4ffb5be.wav",
+            "target": "media/05-all-parallel-trisamples808/target/06-tr808-bd-bass-drum-long-10-e4ffb5be.wav"
+          }
+        }
+      ]
+    },
+    {
+      "slug": "05-all-parallel-musicradar-drum-samples",
+      "name": "05_all_parallel_musicradar_drum_samples",
+      "display_name": "05 all parallel musicradar drum samples",
+      "relative_dir": "C:/Users/mindi/Desktop/results/run_NOISEDAC_20260412_231956/per_pack/05_all_parallel_musicradar_drum_samples",
+      "config": "cfg/05_all_parallel.yaml",
+      "checkpoint": "/workspace/drumblender/ckpt/run_NOISEDAC_20260412_231956/run_NOISEDAC_20260412_231956-epoch058-step00035282.ckpt",
+      "split": "test",
+      "num_items": 72,
+      "export_time_utc": "2026-04-13T05:25:03.674510+00:00",
+      "metrics": {
+        "test/loss": 1.5484764956765704,
+        "test/lsd": 2.5434160232543945,
+        "test/flux_onset": 136.86671447753906,
+        "test/mss_sc": 0.6088063257435957,
+        "test/mss_log": 0.9396701529622078
+      },
+      "metric_names": [
+        "test/flux_onset",
+        "test/loss",
+        "test/lsd",
+        "test/mss_log",
+        "test/mss_sc"
+      ],
+      "sample_metric_names": [
+        "test/flux_onset",
+        "test/loss",
+        "test/lsd"
+      ],
+      "loss_stats": {
+        "mean": 1.5484764956765704,
+        "std": 0.25378173520648345,
+        "min": 1.1622600555419922,
+        "max": 2.66949462890625,
+        "median": 1.5016185641288757,
+        "p95": 1.9160451889038086,
+        "count": 72
+      },
+      "git_commit": "6e98532f5b3aff2a998ddbc400cf8f24d64140d4",
+      "has_audio": true,
+      "samples": [
+        {
+          "bucket": "best",
+          "source_filename": "musicradar-drum-samples/Assorted Hits/CYCdh_SonSnrOff-01.wav",
+          "pack": "musicradar-drum-samples",
+          "length": 40635,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 1.1622600555419922,
+            "test/lsd": 2.3721537590026855,
+            "test/flux_onset": 0.5223181843757629
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-musicradar-drum-samples/recon/01-cycdh-sonsnroff-01-34b4c1cf.wav",
+            "target": "media/05-all-parallel-musicradar-drum-samples/target/01-cycdh-sonsnroff-01-34b4c1cf.wav"
+          }
+        },
+        {
+          "bucket": "best",
+          "source_filename": "musicradar-drum-samples/Drum Kits_mono/CYCdh_Kurz04-Tom05.wav",
+          "pack": "musicradar-drum-samples",
+          "length": 30464,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 1.1873177289962769,
+            "test/lsd": 2.095261812210083,
+            "test/flux_onset": 97.92122650146484
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-musicradar-drum-samples/recon/02-cycdh-kurz04-tom05-b2eb1552.wav",
+            "target": "media/05-all-parallel-musicradar-drum-samples/target/02-cycdh-kurz04-tom05-b2eb1552.wav"
+          }
+        },
+        {
+          "bucket": "median",
+          "source_filename": "musicradar-drum-samples/Assorted Hits/CYCdh_TamUpsd-06.wav",
+          "pack": "musicradar-drum-samples",
+          "length": 8960,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 1.4855903387069702,
+            "test/lsd": 2.1654391288757324,
+            "test/flux_onset": 40.24617004394531
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-musicradar-drum-samples/recon/03-cycdh-tamupsd-06-cdd7c3d5.wav",
+            "target": "media/05-all-parallel-musicradar-drum-samples/target/03-cycdh-tamupsd-06-cdd7c3d5.wav"
+          }
+        },
+        {
+          "bucket": "median",
+          "source_filename": "musicradar-drum-samples/Drum Kits_mono/CYCdh_K2room_SdSt-06.wav",
+          "pack": "musicradar-drum-samples",
+          "length": 15872,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 1.498247504234314,
+            "test/lsd": 2.0339407920837402,
+            "test/flux_onset": 5.049232482910156
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-musicradar-drum-samples/recon/04-cycdh-k2room-sdst-06-ba3b8e93.wav",
+            "target": "media/05-all-parallel-musicradar-drum-samples/target/04-cycdh-k2room-sdst-06-ba3b8e93.wav"
+          }
+        },
+        {
+          "bucket": "worst",
+          "source_filename": "musicradar-drum-samples/Drum Kits_mono/CYCdh_ElecK01-OpHat01.wav",
+          "pack": "musicradar-drum-samples",
+          "length": 16640,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 2.66949462890625,
+            "test/lsd": 4.648893356323242,
+            "test/flux_onset": 10.747485160827637
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-musicradar-drum-samples/recon/05-cycdh-eleck01-ophat01-26a5ce7d.wav",
+            "target": "media/05-all-parallel-musicradar-drum-samples/target/05-cycdh-eleck01-ophat01-26a5ce7d.wav"
+          }
+        },
+        {
+          "bucket": "worst",
+          "source_filename": "musicradar-drum-samples/Drum Kits_mono/CYCdh_ElecK03-Snr01.wav",
+          "pack": "musicradar-drum-samples",
+          "length": 6144,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 2.312915086746216,
+            "test/lsd": 4.994237899780273,
+            "test/flux_onset": 759.1461181640625
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-musicradar-drum-samples/recon/06-cycdh-eleck03-snr01-3220b648.wav",
+            "target": "media/05-all-parallel-musicradar-drum-samples/target/06-cycdh-eleck03-snr01-3220b648.wav"
+          }
+        }
+      ]
+    },
+    {
+      "slug": "05-all-parallel-tidalcycles808",
+      "name": "05_all_parallel_TidalCycles808",
+      "display_name": "05 all parallel TidalCycles808",
+      "relative_dir": "C:/Users/mindi/Desktop/results/run_NOISEDAC_20260412_231956/per_pack/05_all_parallel_TidalCycles808",
+      "config": "cfg/05_all_parallel.yaml",
+      "checkpoint": "/workspace/drumblender/ckpt/run_NOISEDAC_20260412_231956/run_NOISEDAC_20260412_231956-epoch058-step00035282.ckpt",
+      "split": "test",
+      "num_items": 12,
+      "export_time_utc": "2026-04-13T05:24:35.804385+00:00",
+      "metrics": {
+        "test/loss": 1.6492927372455597,
+        "test/lsd": 2.2727603912353516,
+        "test/flux_onset": 248.8014373779297,
+        "test/mss_sc": 0.6001802161335945,
+        "test/mss_log": 1.0491124987602234
+      },
+      "metric_names": [
+        "test/flux_onset",
+        "test/loss",
+        "test/lsd",
+        "test/mss_log",
+        "test/mss_sc"
+      ],
+      "sample_metric_names": [
+        "test/flux_onset",
+        "test/loss",
+        "test/lsd"
+      ],
+      "loss_stats": {
+        "mean": 1.6492927372455597,
+        "std": 0.6222124247947891,
+        "min": 1.3723013401031494,
+        "max": 3.6990182399749756,
+        "median": 1.4543410539627075,
+        "p95": 1.6338038444519043,
+        "count": 12
+      },
+      "git_commit": "6e98532f5b3aff2a998ddbc400cf8f24d64140d4",
+      "has_audio": true,
+      "samples": [
+        {
+          "bucket": "best",
+          "source_filename": "TidalCycles808/CY/CY0075.WAV",
+          "pack": "TidalCycles808",
+          "length": 129536,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 1.3723013401031494,
+            "test/lsd": 2.1404385566711426,
+            "test/flux_onset": 10.918315887451172
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-tidalcycles808/recon/01-cy0075-bb78a3bd.wav",
+            "target": "media/05-all-parallel-tidalcycles808/target/01-cy0075-bb78a3bd.wav"
+          }
+        },
+        {
+          "bucket": "best",
+          "source_filename": "TidalCycles808/CY/CY2550.WAV",
+          "pack": "TidalCycles808",
+          "length": 100096,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 1.3879073858261108,
+            "test/lsd": 2.1438028812408447,
+            "test/flux_onset": 13.545051574707031
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-tidalcycles808/recon/02-cy2550-51206e33.wav",
+            "target": "media/05-all-parallel-tidalcycles808/target/02-cy2550-51206e33.wav"
+          }
+        },
+        {
+          "bucket": "median",
+          "source_filename": "TidalCycles808/MC/MC10.WAV",
+          "pack": "TidalCycles808",
+          "length": 11264,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 1.414709448814392,
+            "test/lsd": 2.2310290336608887,
+            "test/flux_onset": 483.5333557128906
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-tidalcycles808/recon/03-mc10-b173baef.wav",
+            "target": "media/05-all-parallel-tidalcycles808/target/03-mc10-b173baef.wav"
+          }
+        },
+        {
+          "bucket": "median",
+          "source_filename": "TidalCycles808/SD/SD2575.WAV",
+          "pack": "TidalCycles808",
+          "length": 8704,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 1.452059268951416,
+            "test/lsd": 2.156444787979126,
+            "test/flux_onset": 124.86759948730469
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-tidalcycles808/recon/04-sd2575-b75ce763.wav",
+            "target": "media/05-all-parallel-tidalcycles808/target/04-sd2575-b75ce763.wav"
+          }
+        },
+        {
+          "bucket": "worst",
+          "source_filename": "TidalCycles808/CL/CL.WAV",
+          "pack": "TidalCycles808",
+          "length": 1792,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 3.6990182399749756,
+            "test/lsd": 2.6476197242736816,
+            "test/flux_onset": 560.8634033203125
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-tidalcycles808/recon/05-cl-455bad31.wav",
+            "target": "media/05-all-parallel-tidalcycles808/target/05-cl-455bad31.wav"
+          }
+        },
+        {
+          "bucket": "worst",
+          "source_filename": "TidalCycles808/CP/CP.WAV",
+          "pack": "TidalCycles808",
+          "length": 36096,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 1.6338038444519043,
+            "test/lsd": 2.211158514022827,
+            "test/flux_onset": 36.00385284423828
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-tidalcycles808/recon/06-cp-79643cd9.wav",
+            "target": "media/05-all-parallel-tidalcycles808/target/06-cp-79643cd9.wav"
+          }
+        }
+      ]
+    },
+    {
+      "slug": "05-all-parallel-trisamples",
+      "name": "05_all_parallel_TriSamples",
+      "display_name": "05 all parallel TriSamples",
+      "relative_dir": "C:/Users/mindi/Desktop/results/run_NOISEDAC_20260412_231956/per_pack/05_all_parallel_TriSamples",
+      "config": "cfg/05_all_parallel.yaml",
+      "checkpoint": "/workspace/drumblender/ckpt/run_NOISEDAC_20260412_231956/run_NOISEDAC_20260412_231956-epoch058-step00035282.ckpt",
+      "split": "test",
+      "num_items": 62,
+      "export_time_utc": "2026-04-13T05:24:42.244907+00:00",
+      "metrics": {
+        "test/loss": 1.7471885834970782,
+        "test/lsd": 2.937441110610962,
+        "test/flux_onset": 2341.48681640625,
+        "test/mss_sc": 0.6591725089857655,
+        "test/mss_log": 1.0880160725885821
+      },
+      "metric_names": [
+        "test/flux_onset",
+        "test/loss",
+        "test/lsd",
+        "test/mss_log",
+        "test/mss_sc"
+      ],
+      "sample_metric_names": [
+        "test/flux_onset",
+        "test/loss",
+        "test/lsd"
+      ],
+      "loss_stats": {
+        "mean": 1.7471885834970782,
+        "std": 0.4139223700918326,
+        "min": 1.2278865575790405,
+        "max": 4.102064609527588,
+        "median": 1.6611824035644531,
+        "p95": 2.0816211700439453,
+        "count": 62
+      },
+      "git_commit": "6e98532f5b3aff2a998ddbc400cf8f24d64140d4",
+      "has_audio": true,
+      "samples": [
+        {
+          "bucket": "best",
+          "source_filename": "TriSamples/TriSamples - 808s In The Box/606 Kick Drum 01.Wav",
+          "pack": "TriSamples",
+          "length": 14848,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 1.2278865575790405,
+            "test/lsd": 2.4905872344970703,
+            "test/flux_onset": 2008.24169921875
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-trisamples/recon/01-606-kick-drum-01-9ccc2d66.wav",
+            "target": "media/05-all-parallel-trisamples/target/01-606-kick-drum-01-9ccc2d66.wav"
+          }
+        },
+        {
+          "bucket": "best",
+          "source_filename": "TriSamples/TriSamples - The Sample Set Vol 5/TSSS5 Perc 003 - Electro Tom.wav",
+          "pack": "TriSamples",
+          "length": 18432,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 1.2602384090423584,
+            "test/lsd": 2.4774088859558105,
+            "test/flux_onset": 698.6163940429688
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-trisamples/recon/02-tsss5-perc-003-electro-tom-fc2072b0.wav",
+            "target": "media/05-all-parallel-trisamples/target/02-tsss5-perc-003-electro-tom-fc2072b0.wav"
+          }
+        },
+        {
+          "bucket": "median",
+          "source_filename": "TriSamples/TriSamples - 808 Trapstep Pack Vol 2/Percussion Cowbell 002.wav",
+          "pack": "TriSamples",
+          "length": 13056,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 1.6467421054840088,
+            "test/lsd": 2.289642572402954,
+            "test/flux_onset": 310.3611755371094
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-trisamples/recon/03-percussion-cowbell-002-79de77b9.wav",
+            "target": "media/05-all-parallel-trisamples/target/03-percussion-cowbell-002-79de77b9.wav"
+          }
+        },
+        {
+          "bucket": "median",
+          "source_filename": "TriSamples/TriSamples - 808s In The Box/808 HiHat Open 00.Wav",
+          "pack": "TriSamples",
+          "length": 57600,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 1.659749984741211,
+            "test/lsd": 3.0409655570983887,
+            "test/flux_onset": 59.783504486083984
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-trisamples/recon/04-808-hihat-open-00-39e0acde.wav",
+            "target": "media/05-all-parallel-trisamples/target/04-808-hihat-open-00-39e0acde.wav"
+          }
+        },
+        {
+          "bucket": "worst",
+          "source_filename": "TriSamples/TriSamples - 808s In The Box/808 Clave 01.Wav",
+          "pack": "TriSamples",
+          "length": 2816,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 4.102064609527588,
+            "test/lsd": 3.1921517848968506,
+            "test/flux_onset": 530.4804077148438
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-trisamples/recon/05-808-clave-01-9f508422.wav",
+            "target": "media/05-all-parallel-trisamples/target/05-808-clave-01-9f508422.wav"
+          }
+        },
+        {
+          "bucket": "worst",
+          "source_filename": "TriSamples/TriSamples - 808 Trapstep Pack Vol 2/HiHat Closed 014 Digi.wav",
+          "pack": "TriSamples",
+          "length": 4096,
+          "metric_focus": "test/loss",
+          "metrics": {
+            "test/loss": 2.9057302474975586,
+            "test/lsd": 4.820521831512451,
+            "test/flux_onset": 121.03809356689453
+          },
+          "audio": {
+            "recon": "media/05-all-parallel-trisamples/recon/06-hihat-closed-014-digi-d33298c3.wav",
+            "target": "media/05-all-parallel-trisamples/target/06-hihat-closed-014-digi-d33298c3.wav"
+          }
+        }
+      ]
     }
   ]
 }

@@ -113,10 +113,10 @@ def main():
     ap = argparse.ArgumentParser()
 
     # inputs
-    ap.add_argument("--processed_root", type=str, default="/private/datasets/processed")
+    ap.add_argument("--processed_root", type=str, default="../samples/processed")
 
     # outputs
-    ap.add_argument("--out_dir", type=str, default="/private/datasets/modal_features/processed_modal_flat")
+    ap.add_argument("--out_dir", type=str, default="../datasets/modal_features/processed_modal_flat")
     ap.add_argument("--meta_name", type=str, default="metadata.json")
 
     # modal params

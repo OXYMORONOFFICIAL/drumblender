@@ -1,0 +1,13 @@
+class_path: drumblender.upgrades.encoders.APCodecStyleAttentionEncoder
+init_args:
+  input_channels: 1
+  output_channels: 128
+  hidden_channels: 192
+  branch_channels: 192
+  latent_channels: 32
+  num_layers: 6
+  n_fft: 1024
+  hop_size: 40
+  win_size: 320
+  spectral_downsample_ratio: 8
+  target_hop_size: 128

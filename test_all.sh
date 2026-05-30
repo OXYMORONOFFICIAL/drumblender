@@ -21,6 +21,13 @@ NOISE_ENCODER_MODE="${2:-${NOISE_ENCODER_MODE:-baseline}}"
 TRANSIENT_ENCODER_MODE="${3:-${TRANSIENT_ENCODER_MODE:-baseline}}"
 
 cd "$REPO_ROOT" || exit 1
+source "$REPO_ROOT/scripts/encoder_modes.sh"
+
+usage() {
+  printf 'usage: bash test_all.sh [plain|amp|smooth|si|legacy_si] [%s] [%s]\n' \
+    "$DRUMBLENDER_NOISE_ENCODER_MODE_USAGE" \
+    "$DRUMBLENDER_TRANSIENT_ENCODER_MODE_USAGE" >&2
+}
 
 case "$LOSS_MODE" in
   plain|baseline|off)
@@ -36,54 +43,24 @@ case "$LOSS_MODE" in
     LOSS_CFG_PATH="$REPO_ROOT/cfg/loss/safe_mss.yaml"
     ;;
   *)
-    printf 'usage: bash test_all.sh [plain|amp|smooth|si|legacy_si] [baseline|dac|dac_lstm|dac_len|dac_lstm_len|dac_len_lstm_len] [baseline|dac]\n' >&2
+    usage
     exit 1
     ;;
 esac
 
-case "$NOISE_ENCODER_MODE" in
-  baseline|soundstream|off)
-    NOISE_ENCODER_BACKBONE=""
-    NOISE_ENCODER_CFG_PATH=""
-    ;;
-  dac)
-    NOISE_ENCODER_BACKBONE="dac"
-    NOISE_ENCODER_CFG_PATH=""
-    ;;
-  dac_lstm|daclstm|sequence)
-    NOISE_ENCODER_BACKBONE=""
-    NOISE_ENCODER_CFG_PATH="$REPO_ROOT/cfg/upgrades/encoders/noise_dac_lstm_style.yaml"
-    ;;
-  dac_len|daclen)
-    NOISE_ENCODER_BACKBONE=""
-    NOISE_ENCODER_CFG_PATH="$REPO_ROOT/cfg/upgrades/encoders/noise_dac_len_style.yaml"
-    ;;
-  dac_lstm_len|daclstm_len|daclstmlen)
-    NOISE_ENCODER_BACKBONE=""
-    NOISE_ENCODER_CFG_PATH="$REPO_ROOT/cfg/upgrades/encoders/noise_dac_lstm_len_style.yaml"
-    ;;
-  dac_len_lstm_len|daclen_lstm_len|daclenlstmlen)
-    NOISE_ENCODER_BACKBONE=""
-    NOISE_ENCODER_CFG_PATH="$REPO_ROOT/cfg/upgrades/encoders/noise_dac_len_lstm_len_style.yaml"
-    ;;
-  *)
-    printf 'usage: bash test_all.sh [plain|amp|smooth|si|legacy_si] [baseline|dac|dac_lstm|dac_len|dac_lstm_len|dac_len_lstm_len] [baseline|dac]\n' >&2
-    exit 1
-    ;;
-esac
+IFS=$'\t' read -r _ NOISE_ENCODER_CFG_PATH < <(
+  drumblender_resolve_encoder_mode noise "$NOISE_ENCODER_MODE" "$REPO_ROOT"
+) || {
+  usage
+  exit 1
+}
 
-case "$TRANSIENT_ENCODER_MODE" in
-  baseline|soundstream|off)
-    TRANSIENT_ENCODER_BACKBONE=""
-    ;;
-  dac)
-    TRANSIENT_ENCODER_BACKBONE="dac"
-    ;;
-  *)
-    printf 'usage: bash test_all.sh [plain|amp|smooth|si|legacy_si] [baseline|dac|dac_lstm|dac_len|dac_lstm_len|dac_len_lstm_len] [baseline|dac]\n' >&2
-    exit 1
-    ;;
-esac
+IFS=$'\t' read -r _ TRANSIENT_ENCODER_CFG_PATH < <(
+  drumblender_resolve_encoder_mode transient "$TRANSIENT_ENCODER_MODE" "$REPO_ROOT"
+) || {
+  usage
+  exit 1
+}
 
 if [[ ! -f "$CFG_PATH" ]]; then
   printf '[test_all.sh] missing config: %s\n' "$CFG_PATH" >&2
@@ -117,16 +94,12 @@ if [[ -n "$LOSS_CFG_PATH" ]]; then
   CMD+=(--loss-cfg "$LOSS_CFG_PATH")
 fi
 
-if [[ -n "$NOISE_ENCODER_BACKBONE" ]]; then
-  CMD+=(--noise-encoder-backbone "$NOISE_ENCODER_BACKBONE")
-fi
-
 if [[ -n "$NOISE_ENCODER_CFG_PATH" ]]; then
   CMD+=(--noise-encoder-cfg "$NOISE_ENCODER_CFG_PATH")
 fi
 
-if [[ -n "$TRANSIENT_ENCODER_BACKBONE" ]]; then
-  CMD+=(--transient-encoder-backbone "$TRANSIENT_ENCODER_BACKBONE")
+if [[ -n "$TRANSIENT_ENCODER_CFG_PATH" ]]; then
+  CMD+=(--transient-encoder-cfg "$TRANSIENT_ENCODER_CFG_PATH")
 fi
 
 if [[ "$SAVE_TARGET" == "on" ]]; then
@@ -141,7 +114,13 @@ printf '[test_all.sh] output: %s\n' "$OUTPUT_DIR"
 printf '[test_all.sh] data config: %s\n' "$DATA_CFG"
 printf '[test_all.sh] loss mode: %s\n' "$LOSS_MODE"
 printf '[test_all.sh] noise encoder mode: %s\n' "$NOISE_ENCODER_MODE"
+if [[ -n "$NOISE_ENCODER_CFG_PATH" ]]; then
+  printf '[test_all.sh] noise encoder cfg: %s\n' "$NOISE_ENCODER_CFG_PATH"
+fi
 printf '[test_all.sh] transient encoder mode: %s\n' "$TRANSIENT_ENCODER_MODE"
+if [[ -n "$TRANSIENT_ENCODER_CFG_PATH" ]]; then
+  printf '[test_all.sh] transient encoder cfg: %s\n' "$TRANSIENT_ENCODER_CFG_PATH"
+fi
 "${CMD[@]}"
 
 python scripts/postprocess_results.py "$RUN_DIR" --report-dir "$REPORT_DIR"

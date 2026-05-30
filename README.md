@@ -27,17 +27,27 @@ To run this command on a CPU you can add the argument `--trainer.accelerator cpu
 This repository includes a static experiment board under `docs/` for publishing
 evaluation summaries and a small curated audio audition set on GitHub Pages.
 
-To rebuild the site from local evaluation outputs in `logs/`:
+To rebuild the site from the local NOISEDAC evaluation output in `../results/`:
 
 ```bash
-python scripts/build_github_pages.py --logs-root logs --output docs --samples-per-run 6
+python scripts/build_github_pages.py --logs-root ../results/run_NOISEDAC_20260412_231956 --output docs --samples-per-run 6
 ```
 
-The script scans `logs/**/evaluation/summary.json`, copies a few
+The script scans `../results/run_NOISEDAC_20260412_231956/**/evaluation/summary.json`, copies a few
 target/reconstruction audio pairs for runs that include `manifest.csv`, and
 writes the site data to `docs/data/site-data.json`. A GitHub Actions workflow at
 `.github/workflows/pages.yml` then deploys the `docs/` folder to GitHub Pages on
 pushes to `main`.
+
+To add the controllability audition panel, pre-render static control sweeps in
+the same Python environment used for inference:
+
+```bash
+python scripts/recon/control_demo.py ../results/run_NOISEDAC_20260412_231956 --output docs --methods both --sample-count 3 --num-knobs 2 --axis-samples 512 --clear
+```
+
+This writes wav files under `docs/media/control/` and updates
+`docs/data/control-data.json` for the Control tab.
 
 ## System Information
 For Forum Acusticum 2023, experiments were run using

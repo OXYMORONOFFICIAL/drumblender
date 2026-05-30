@@ -19,7 +19,8 @@ cd /root/drumblender
 python scripts/export_recon_wavs.py \
   --config cfg/05_all_parallel.yaml \
   --ckpt /root/drumblender/ckpt/last.ckpt \
-  --data-dir /root/datasets/modal_features/processed_modal_flat \
+  --data-dir ../datasets/modal_features/processed_modal_flat \
+  --audio-dir ../samples/processed \
   --meta-file metadata.json \
   --split test \
   --split-strategy sample_pack \
@@ -54,6 +55,28 @@ from tqdm import tqdm
 
 from drumblender.data.audio import AudioWithParametersDataset
 from drumblender.utils.model import load_model
+
+
+NOISE_ENCODER_BACKBONE_CHOICES = [
+    "soundstream",
+    "dac",
+    "dac_lstm",
+    "dac_len",
+    "dac_lstm_len",
+    "dac_len_lstm_len",
+    "wavtokenizer",
+    "bscodec",
+    "apcodec",
+    "spectrostream",
+]
+TRANSIENT_ENCODER_BACKBONE_CHOICES = [
+    "soundstream",
+    "dac",
+    "wavtokenizer",
+    "bscodec",
+    "apcodec",
+    "spectrostream",
+]
 
 
 def _safe_relpath(path_str: str) -> Path:
@@ -457,6 +480,11 @@ def _resolve_data_args(args: argparse.Namespace) -> Dict[str, Any]:
         init_args, dataset_kwargs = _load_data_config_args(args.data_config)
 
     data_dir = args.data_dir if args.data_dir is not None else init_args.get("data_dir")
+    audio_dir = (
+        args.audio_dir
+        if args.audio_dir is not None
+        else dataset_kwargs.get("audio_dir")
+    )
     meta_file = args.meta_file if args.meta_file is not None else init_args.get("meta_file", "metadata.json")
     sample_rate = (
         args.sample_rate if args.sample_rate is not None else init_args.get("sample_rate")
@@ -497,6 +525,7 @@ def _resolve_data_args(args: argparse.Namespace) -> Dict[str, Any]:
 
     return {
         "data_dir": data_dir,
+        "audio_dir": audio_dir,
         "meta_file": meta_file,
         "sample_rate": int(sample_rate),
         "num_samples": num_samples,
@@ -534,14 +563,14 @@ def parse_args() -> argparse.Namespace:
         "--noise-encoder-backbone",
         type=str,
         default="soundstream",
-        choices=["soundstream", "dac", "hybrid", "apcodec"],
+        choices=NOISE_ENCODER_BACKBONE_CHOICES,
         help="Noise encoder backbone override.",
     )
     parser.add_argument(
         "--transient-encoder-backbone",
         type=str,
         default="soundstream",
-        choices=["soundstream", "dac", "hybrid", "apcodec"],
+        choices=TRANSIENT_ENCODER_BACKBONE_CHOICES,
         help="Transient encoder backbone override.",
     )
     parser.add_argument(
@@ -556,7 +585,8 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Explicit transient encoder config path override.",
     )
-    parser.add_argument("--data-dir", type=str, default=None, help="Dataset root")
+    parser.add_argument("--data-dir", type=str, default=None, help="Modal feature dataset root")
+    parser.add_argument("--audio-dir", type=str, default=None, help="Original wav root")
     parser.add_argument("--meta-file", type=str, default=None)
     parser.add_argument("--split", type=str, default="test", choices=["train", "val", "test"])
     parser.add_argument(
@@ -684,6 +714,7 @@ def main() -> None:
         split_strategy=data_args["split_strategy"],
         parameter_key=data_args["parameter_key"],
         expected_num_modes=data_args["expected_num_modes"],
+        audio_dir=data_args["audio_dir"],
         seed=data_args["seed"],
         sample_pack_keys=data_args["sample_pack_keys"],
     )
@@ -790,6 +821,7 @@ def main() -> None:
         "metrics_config": args.metrics_config,
         "ckpt": args.ckpt,
         "data_dir": data_args["data_dir"],
+        "audio_dir": data_args["audio_dir"],
         "meta_file": data_args["meta_file"],
         "split": args.split,
         "split_strategy": data_args["split_strategy"],

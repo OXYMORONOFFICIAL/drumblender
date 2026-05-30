@@ -3,113 +3,108 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>DrumBlender Experiment Board</title>
+    <title>DrumBlender Demo</title>
     <meta
       name="description"
-      content="Static GitHub Pages board for DrumBlender experiment metrics and audio audition."
+      content="Paper demo for DrumBlender reconstruction, audition, metrics, and controllability examples."
     />
     <link rel="stylesheet" href="./assets/site.css" />
   </head>
   <body>
-    <div class="page-shell">
-      <header class="hero">
-        <p class="eyebrow">DrumBlender</p>
-        <h1>Experiment Results and Audition Board</h1>
-        <p class="hero-copy">
-          Compare runs at a glance, then listen to curated target-vs-reconstruction
-          examples without leaving the page.
-        </p>
-        <div id="hero-stats" class="hero-stats" aria-label="site stats"></div>
+    <div class="shell">
+      <header class="topbar" aria-label="Demo header">
+        <div>
+          <p class="eyebrow">DrumBlender</p>
+          <h1>Differentiable Percussive Audio Modeling</h1>
+        </div>
+        <nav class="tabs" aria-label="Demo sections">
+          <button class="tab is-active" type="button" data-view="audition">Audition</button>
+          <button class="tab" type="button" data-view="control">Control</button>
+          <button class="tab" type="button" data-view="metrics">Metrics</button>
+        </nav>
       </header>
 
-      <main class="layout">
-        <section class="panel">
-          <div class="section-head">
-            <div>
-              <p class="eyebrow">Overview</p>
-              <h2>Run Summary</h2>
-            </div>
-            <p id="generated-meta" class="muted"></p>
-          </div>
-          <div id="run-grid" class="run-grid"></div>
+      <main>
+        <section class="scoreboard" aria-label="Experiment summary">
+          <article>
+            <span class="stat-label">Run</span>
+            <strong id="summary-run">Loading</strong>
+          </article>
+          <article>
+            <span class="stat-label">Samples</span>
+            <strong id="summary-items">-</strong>
+          </article>
+          <article>
+            <span class="stat-label">MSS Loss</span>
+            <strong id="summary-loss">-</strong>
+          </article>
+          <article>
+            <span class="stat-label">LSD</span>
+            <strong id="summary-lsd">-</strong>
+          </article>
+          <article>
+            <span class="stat-label">Onset Flux</span>
+            <strong id="summary-flux">-</strong>
+          </article>
         </section>
 
-        <section class="panel">
-          <div class="section-head">
+        <section id="view-audition" class="view is-active" aria-labelledby="audition-title">
+          <div class="view-head">
             <div>
-              <p class="eyebrow">Comparison</p>
-              <h2>Metric Table</h2>
+              <p class="eyebrow">Audition Visualizer</p>
+              <h2 id="audition-title">Target vs. Reconstruction</h2>
             </div>
-            <p class="muted">Sorted by lower `test/loss` first.</p>
-          </div>
-          <div class="table-wrap">
-            <table id="metric-table" class="metric-table">
-              <thead></thead>
-              <tbody></tbody>
-            </table>
-          </div>
-        </section>
-
-        <section class="panel">
-          <div class="section-head">
-            <div>
-              <p class="eyebrow">Audition</p>
-              <h2>Curated Audio Samples</h2>
-            </div>
-            <div class="controls">
-              <label class="control">
-                <span>Run</span>
-                <select id="run-select"></select>
+            <div class="toolbar">
+              <label>
+                <span>Bundle</span>
+                <select id="audition-run"></select>
               </label>
-              <label class="control">
+              <label>
                 <span>Search</span>
-                <input id="sample-search" type="search" placeholder="kick, snare, pack..." />
+                <input id="audition-search" type="search" placeholder="kick, snare, MDLib2..." />
               </label>
             </div>
           </div>
-          <div id="audition-empty" class="muted hidden">
-            No run with copied audio samples is available yet.
+          <div id="bucket-filter" class="segmented" aria-label="Sample quality filter"></div>
+          <div id="audition-grid" class="audition-grid"></div>
+        </section>
+
+        <section id="view-control" class="view" aria-labelledby="control-title">
+          <div class="view-head">
+            <div>
+              <p class="eyebrow">Controllability</p>
+              <h2 id="control-title">Latent Control Sweep</h2>
+            </div>
+            <div class="toolbar">
+              <label>
+                <span>Demo</span>
+                <select id="control-demo"></select>
+              </label>
+            </div>
           </div>
-          <div id="sample-grid" class="sample-grid"></div>
+          <div id="control-panel" class="control-panel"></div>
+        </section>
+
+        <section id="view-metrics" class="view" aria-labelledby="metrics-title">
+          <div class="view-head">
+            <div>
+              <p class="eyebrow">Evaluation</p>
+              <h2 id="metrics-title">Pack-Level Metrics</h2>
+            </div>
+            <p id="generated-meta" class="generated-meta"></p>
+          </div>
+          <div class="metric-layout">
+            <div id="pack-ranking" class="ranking"></div>
+            <div class="table-wrap">
+              <table id="metric-table">
+                <thead></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
         </section>
       </main>
     </div>
-
-    <template id="run-card-template">
-      <article class="run-card reveal">
-        <div class="run-card-top">
-          <div>
-            <p class="run-name"></p>
-            <p class="run-config muted"></p>
-          </div>
-          <span class="audio-pill"></span>
-        </div>
-        <dl class="run-metrics"></dl>
-      </article>
-    </template>
-
-    <template id="sample-card-template">
-      <article class="sample-card reveal">
-        <div class="sample-head">
-          <div>
-            <p class="sample-pack"></p>
-            <h3 class="sample-file"></h3>
-          </div>
-          <span class="bucket-pill"></span>
-        </div>
-        <div class="metric-chip-row"></div>
-        <div class="audio-compare">
-          <div class="audio-box">
-            <p class="audio-label">Target</p>
-            <audio class="target-audio" controls preload="none"></audio>
-          </div>
-          <div class="audio-box">
-            <p class="audio-label">Reconstruction</p>
-            <audio class="recon-audio" controls preload="none"></audio>
-          </div>
-        </div>
-      </article>
-    </template>
 
     <script type="module" src="./assets/site.js"></script>
   </body>
